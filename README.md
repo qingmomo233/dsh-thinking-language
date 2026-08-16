@@ -1,91 +1,84 @@
+<div align="center">
+
+🌐 **简体中文** | [English](README.en.md)
+
+</div>
+
 # dsh-plugin-thinking-language
 
-A DeepSeek Harness plugin that lets you switch the language of the agent's
-**thinking/reasoning process** (chain-of-thought). Supports Chinese, English,
-Russian, French, German, Spanish, Japanese, Korean and many more mainstream
-languages, or "auto" to follow the model.
+一个 DeepSeek Harness 插件，用于切换智能体**思考过程（推理 / 链式思考）的语言**。
+支持中文、英文、俄语、法语、德语、西班牙语、日语、韩语等主流语言，也可选择
+「跟随模型（自动）」。
 
-## What it does
+## 功能
 
-- **Settings row** — Settings → General now shows a **Thinking language**
-  picker (a `<select>` next to the built-in Appearance / Language rows).
-- **System prompt instruction** — when a language is selected, the plugin
-  injects an instruction telling the model to write its internal reasoning in
-  that language. The instruction is evaluated per prompt assembly, so it
-  applies to every **new session**. Existing sessions keep the prompt they
-  already composed.
-- **`/thinking-language` command** — set or inspect the language directly from
-  chat, e.g. `/thinking-language ru` or `/thinking-language auto`.
+- **设置项** — 设置 → 通用 中新增「思考语言」下拉框（与内置的「外观」「语言」行并列）。
+- **系统提示词注入** — 选择语言后，插件会向系统提示词注入一条指令，要求模型用该语言
+  书写内部推理过程。指令在每次组装提示词时求值，因此对**新建会话**生效；已有会话
+  继续使用其已组装的提示词。
+- **`/thinking-language` 命令** — 直接在聊天中查看或切换语言，例如 `/thinking-language ru`
+  或 `/thinking-language auto`。
 
-The setting is stored in the standard user-settings document under the
-`thinking-language` namespace, so it survives restarts and is shared by the
-settings row and the command.
+设置存储于标准用户设置文档的 `thinking-language` 命名空间，重启后仍保留，
+设置行与命令共享同一份配置。
 
-> The final answer to the user is **not** affected: the setting only targets
-> the model's internal thinking/chain-of-thought.
+> 注意：该设置只影响模型的内部思考/链式思考，**不会改变**给用户的最终回答语言。
 
-## Supported languages
+## 支持的语言
 
-`auto` (follow the model) · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
+`auto`（跟随模型） · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
 `ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `pt` Português ·
 `it` Italiano · `ja` 日本語 · `ko` 한국어 · `ar` العربية · `hi` हिन्दी ·
 `tr` Türkçe · `vi` Tiếng Việt · `th` ไทย · `pl` Polski · `uk` Українська ·
 `nl` Nederlands · `sv` Svenska · `id` Bahasa Indonesia · `cs` Čeština
 
-## Install
+## 安装
 
-Run once from a shell (adjust the profile name if you use a different profile,
-e.g. `desktop`):
+在命令行执行（若使用其他配置文件，请把 `web` 换成对应名称，如 `desktop`）：
 
 ```bash
 dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-plugin-thinking-language
 ```
 
-The command installs the package into the profile and appends it to the
-profile's bundle layer (because the package declares `dsh.bundle.patch`).
+该命令会把插件安装到配置目录，并因其声明了 `dsh.bundle.patch` 而自动追加到
+配置文件的 bundle 层。
 
-### One-time harness patch (settings exposure)
+### 一次性补丁（设置暴露）
 
-DeepSeek Harness keeps a hard-coded allowlist of settings namespaces that the
-browser may read/write (`WEB_SETTINGS_NAMESPACES` in `dsh-host-apiproxy`), so a
-plugin-owned namespace is registered host-side but refused by the browser
-(`settings-not-exposed`) until it is added to that list. This installation
-already applied the one-line patch to the installed `dsh-host-apiproxy`
-(both the profile copy and the CLI install share the same file). To re-apply it
-after a reinstall or on another machine, run:
+DeepSeek Harness 在 `dsh-host-apiproxy` 中维护了一个硬编码的设置命名空间白名单
+（`WEB_SETTINGS_NAMESPACES`），只有白名单内的命名空间允许浏览器读写。因此插件注册的
+命名空间在服务端注册后，仍需加入该列表，否则浏览器会收到 `settings-not-exposed`。
+本次安装已对已安装的 `dsh-host-apiproxy` 应用了这一行补丁（配置目录副本与 CLI
+安装副本为同一文件）。若重装后需要重新应用，可运行：
 
 ```bash
 node scripts\patch-apiproxy.mjs
 ```
 
-Then **restart the GUI** (`dsh web` / the desktop app) — bundle layers, the
-client-module scan, and the patched allowlist are read at boot, so a page
-refresh alone is not enough.
+然后**重启 GUI**（`dsh web` 或桌面应用）——bundle 层、客户端模块扫描与补丁后的
+白名单都在启动时读取，仅刷新页面不够。
 
-## Usage
+## 使用方法
 
-1. Open **Settings** (gear icon) → **General**.
-2. Pick a language in the **Thinking language** row (or choose *Follow the
-   model (auto)* to disable the instruction).
-3. Start a **new session** — its thinking process is written in the selected
-   language.
+1. 打开**设置**（齿轮图标）→ **通用**。
+2. 在「思考语言」行选择语言（选择「跟随模型（自动）」即关闭指令）。
+3. 开启**新会话**——其思考过程将使用所选语言书写。
 
-Or from chat:
+或直接在聊天中输入：
 
 ```
-/thinking-language              → show the current value and usage
-/thinking-language ru           → set Russian
-/thinking-language auto         → back to auto
-/thinking-language 日本語       → ids, English names, and native names all work
+/thinking-language              → 查看当前值及用法
+/thinking-language ru           → 设为俄语
+/thinking-language auto         → 恢复自动
+/thinking-language 日本語       → 支持 id、英文名、母语名
 ```
 
-## How it works
+## 实现结构
 
-| Part | File | Role |
+| 部分 | 文件 | 作用 |
 | --- | --- | --- |
-| Host entry | `lib/index.js` | registers the `thinking-language` settings namespace, the `app:thinking-language` system-prompt section (order 85), and the `/thinking-language` command |
-| Browser bundle | `lib/client.js` | registers the picker row into the `settings.general.item` slot; reads/writes the same namespace through the client settings scope |
-| Bundle patch | `cordis.patch.yml` | inserts the plugin row into the composed profile tree |
+| 服务端入口 | `lib/index.js` | 注册 `thinking-language` 设置命名空间、`app:thinking-language` 系统提示词小节（顺序 85）及 `/thinking-language` 命令 |
+| 浏览器端 | `lib/client.js` | 向 `settings.general.item` 槽注册选择行；通过客户端设置作用域读写同一命名空间 |
+| Bundle 补丁 | `cordis.patch.yml` | 把插件行插入组合后的配置树 |
 
-The two halves share the `thinking-language` settings namespace, so changing
-the value in either surface keeps the other in sync.
+两端共享 `thinking-language` 命名空间，任一处修改都会同步到另一处。
