@@ -9,7 +9,7 @@
 A DeepSeek Harness plugin that lets you switch the language of the agent's
 **thinking/reasoning process** (chain-of-thought). Supports Chinese, English,
 Russian, French, German, Spanish, Japanese, Korean and many more mainstream
-languages, or "auto" to follow the model.
+languages, or "auto" to follow the system locale.
 
 ## What it does
 
@@ -17,9 +17,10 @@ languages, or "auto" to follow the model.
   picker (a `<select>` next to the built-in Appearance / Language rows).
 - **System prompt instruction** — when a language is selected, the plugin
   injects an instruction telling the model to write its internal reasoning in
-  that language. The instruction is evaluated per prompt assembly, so it
-  applies to every **new session**. Existing sessions keep the prompt they
-  already composed.
+  that language. With *Follow the system (auto)* the instruction uses the
+  system UI locale (Settings → General → Language; defaults to Chinese). The
+  instruction is evaluated per prompt assembly, so it applies to every **new
+  session**. Existing sessions keep the prompt they already composed.
 - **`/thinking-language` command** — set or inspect the language directly from
   chat, e.g. `/thinking-language ru` or `/thinking-language auto`.
 
@@ -32,7 +33,7 @@ settings row and the command.
 
 ## Supported languages
 
-`auto` (follow the model) · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
+`auto` (follow the system) · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
 `ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `pt` Português ·
 `it` Italiano · `ja` 日本語 · `ko` 한국어 · `ar` العربية · `hi` हिन्दी ·
 `tr` Türkçe · `vi` Tiếng Việt · `th` ไทย · `pl` Polski · `uk` Українська ·
@@ -72,7 +73,7 @@ refresh alone is not enough.
 
 1. Open **Settings** (gear icon) → **General**.
 2. Pick a language in the **Thinking language** row (or choose *Follow the
-   model (auto)* to disable the instruction).
+   system (auto)* to use the system UI locale).
 3. Start a **new session** — its thinking process is written in the selected
    language.
 
