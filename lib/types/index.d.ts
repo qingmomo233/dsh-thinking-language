@@ -23,6 +23,8 @@ export declare const Config: import('@deepseek-ai/schemastery').SchemasteryObjec
 
 /** Compose the model instruction for one language id; `auto` yields "". */
 export declare function thinkingInstruction(language: string | undefined): string;
+/** Compose the per-message dynamic reminder for one language id; `auto` yields "". */
+export declare function thinkingReminder(language: string | undefined): string;
 /** Human-readable current value for the command reply. */
 export declare function describeLanguage(language: string | undefined): string;
 /** Read the current preference (schema default when absent). */

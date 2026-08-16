@@ -5,7 +5,7 @@
 // and its handler updates the settings document.
 import { apply } from "file:///C:/ZiYong/ds-hs-work/dsh-plugin-thinking-language/lib/index.js";
 
-const registrations = { namespaces: [], sections: [], commands: [] };
+const registrations = { namespaces: [], sections: [], contexts: [], commands: [] };
 const document = {};
 
 const settings = {
@@ -15,10 +15,15 @@ const settings = {
 };
 
 let sectionTextThunk = null;
+let contextTextThunk = null;
 const systemPrompt = {
   section(section) {
     registrations.sections.push(section.name);
     if (section.name === "app:thinking-language") sectionTextThunk = section.text;
+  },
+  context(context) {
+    registrations.contexts.push(context.name);
+    if (context.name === "app:thinking-language-reminder") contextTextThunk = context.text;
   }
 };
 
@@ -55,19 +60,29 @@ const check = (label, ok) => { console.log((ok ? "PASS" : "FAIL") + "  " + label
 
 check("settings namespace registered", registrations.namespaces.some((n) => String(n.ns) === "thinking-language"));
 check("system-prompt section registered", registrations.sections.includes("app:thinking-language"));
+check("dynamic reminder context registered", registrations.contexts.includes("app:thinking-language-reminder"));
 check("/thinking-language command registered", registrations.commands.some((c) => c.name === "thinking-language"));
 
-// Section thunk: per-assembly read of the current setting.
+// Section + context thunks: per-assembly read of the current setting.
 document["thinking-language"] = { language: "auto" };
 check("auto -> empty instruction", sectionTextThunk({}) === "");
+check("auto -> empty reminder", contextTextThunk({}) === "");
 document["thinking-language"] = { language: "ru" };
 const ruText = sectionTextThunk({});
 check("ru -> non-empty instruction", typeof ruText === "string" && ruText.length > 0);
 check("ru instruction names Русский", ruText.includes("Русский"));
 check("ru instruction names Russian", ruText.includes("Russian"));
 check("ru instruction keeps final answer language", ruText.includes("final answer"));
+const ruReminder = contextTextThunk({});
+check("ru reminder non-empty", typeof ruReminder === "string" && ruReminder.length > 0);
+check("ru reminder names Русский", ruReminder.includes("Русский"));
+// Immediate switch: the same thunks reflect the changed setting with no reload.
+document["thinking-language"] = { language: "en" };
+check("switch to en -> instruction updated immediately", sectionTextThunk({}).includes("English") && !sectionTextThunk({}).includes("Русский"));
+check("switch to en -> reminder updated immediately", contextTextThunk({}).includes("English") && !contextTextThunk({}).includes("Русский"));
 document["thinking-language"] = { language: "bogus" };
 check("bogus -> empty instruction", sectionTextThunk({}) === "");
+check("bogus -> empty reminder", contextTextThunk({}) === "");
 delete document["thinking-language"];
 
 // Command handler: set, show, reset, invalid.
