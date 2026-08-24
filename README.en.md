@@ -14,7 +14,9 @@ languages, or "auto" to follow the system locale.
 ## What it does
 
 - **Settings row** — Settings → General now shows a **Thinking language**
-  picker (a `<select>` next to the built-in Appearance / Language rows).
+  picker with the same Setting-Cell layout as the built-in Language /
+  Permission rows: title and hint on the left, the selector pill (dropdown
+  menu) on the right.
 - **System prompt instruction** — when a language is selected, the plugin
   injects an instruction telling the model to write its internal reasoning in
   that language. With *Follow the system (auto)* the instruction uses the

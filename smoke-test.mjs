@@ -65,8 +65,10 @@ check("/thinking-language command registered", registrations.commands.some((c) =
 
 // Section + context thunks: per-assembly read of the current setting.
 document["thinking-language"] = { language: "auto" };
-check("auto -> empty instruction", sectionTextThunk({}) === "");
-check("auto -> empty reminder", contextTextThunk({}) === "");
+// "auto" follows the system locale (smoke host has no locale preference, so
+// FALLBACK_SYSTEM_LOCALE "zh" → Simplified Chinese instruction).
+check("auto -> follows system locale (zh-CN) instruction", sectionTextThunk({}).includes("Chinese"));
+check("auto -> follows system locale (zh-CN) reminder", contextTextThunk({}).includes("Chinese"));
 document["thinking-language"] = { language: "ru" };
 const ruText = sectionTextThunk({});
 check("ru -> non-empty instruction", typeof ruText === "string" && ruText.length > 0);
