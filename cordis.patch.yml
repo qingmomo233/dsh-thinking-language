@@ -1,4 +1,4 @@
-# dsh-plugin-thinking-language bundle patch.
+# dsh-thinking-language bundle patch.
 #
 # Registers the plugin's host entry (settings namespace + system-prompt
 # section + the /thinking-language command). The browser half is discovered
@@ -7,4 +7,4 @@
 
 - insert:
     - id: thinking-language
-      name: dsh-plugin-thinking-language
+      name: dsh-thinking-language

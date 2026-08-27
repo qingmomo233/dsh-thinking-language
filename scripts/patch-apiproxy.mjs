@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-plugin-thinking-language — settings exposure patch.
+ * dsh-thinking-language — settings exposure patch.
  *
  * DeepSeek Harness intentionally keeps a hard-coded allowlist of settings
  * namespaces that the browser may read/write (WEB_SETTINGS_NAMESPACES in

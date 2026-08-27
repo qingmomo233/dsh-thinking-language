@@ -4,7 +4,7 @@
 
 </div>
 
-# dsh-plugin-thinking-language
+# dsh-thinking-language
 
 一个 DeepSeek Harness 插件，用于切换智能体**思考过程（推理 / 链式思考）的语言**。
 支持中文、英文、俄语、法语、德语、西班牙语、日语、韩语等主流语言，也可选择

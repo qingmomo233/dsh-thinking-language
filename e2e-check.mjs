@@ -1,4 +1,4 @@
-// End-to-end verification of dsh-plugin-thinking-language against a live
+// End-to-end verification of dsh-thinking-language against a live
 // dsh web instance (port 3399):
 //   1. set thinking-language = ru, create a session, send a prompt
 //   2. read session.history: the request/header system prompt must contain the

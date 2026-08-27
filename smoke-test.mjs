@@ -1,4 +1,4 @@
-// Smoke test: exercise dsh-plugin-thinking-language/lib/index.js apply()
+// Smoke test: exercise dsh-thinking-language/lib/index.js apply()
 // against a minimal fake cordis context. Verifies the settings namespace is
 // registered, the system-prompt section exists and its text thunk reads the
 // current setting per assembly, and the /thinking-language command registers

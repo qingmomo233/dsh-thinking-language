@@ -4,7 +4,7 @@
 
 </div>
 
-# dsh-plugin-thinking-language
+# dsh-thinking-language
 
 A DeepSeek Harness plugin that lets you switch the language of the agent's
 **thinking/reasoning process** (chain-of-thought). Supports Chinese, English,
