@@ -46,8 +46,16 @@ settings row and the command.
 Run once from a shell (adjust the profile name if you use a different profile,
 e.g. `desktop`):
 
+**From GitHub (recommended):**
+
 ```bash
-dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-plugin-thinking-language
+dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
+```
+
+**Or from a local source checkout:**
+
+```bash
+dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-thinking-language
 ```
 
 The command installs the package into the profile and appends it to the

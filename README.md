@@ -38,8 +38,16 @@
 
 在命令行执行（若使用其他配置文件，请把 `web` 换成对应名称，如 `desktop`）：
 
+**从 GitHub 安装（推荐）：**
+
 ```bash
-dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-plugin-thinking-language
+dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
+```
+
+**或从本地源码目录安装：**
+
+```bash
+dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-thinking-language
 ```
 
 该命令会把插件安装到配置目录，并因其声明了 `dsh.bundle.patch` 而自动追加到
