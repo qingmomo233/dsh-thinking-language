@@ -59,10 +59,12 @@ e.g. `desktop`):
 dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
 ```
 
-**Or from a local source checkout:**
+**Or from a local source checkout** (replace `<plugin-dir>` with your own local
+path; pnpm resolves it inside the profile directory, so point it at the plugin
+directory itself):
 
 ```bash
-dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-plugin-thinking-language
+dsh plugin --profile web add <plugin-dir>
 ```
 
 The command installs the package into the profile and appends it to the
@@ -141,5 +143,6 @@ fallback copy, and `smoke-test.mjs` fails when the two drift apart.
 | Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths, frozen UI copy |
 
 ```bash
-node smoke-test.mjs   # or npm test
+pnpm install   # installs the test dependencies (@deepseek-ai/cordis, @deepseek-ai/schemastery)
+npm test       # smoke-test.mjs + cordis-check.mjs
 ```

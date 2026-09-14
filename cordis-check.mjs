@@ -8,6 +8,8 @@
 //
 // Run with: node cordis-check.mjs
 import { Context, Service } from "@deepseek-ai/cordis";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
 	Config,
 	THINKING_LANGUAGE_FIELD,
@@ -163,6 +165,78 @@ await barePlugin;
 check("bare container still registers the namespace", bareDocument !== undefined && [...bareCtx.settings.registrations.keys()].includes(THINKING_NAMESPACE));
 check("bare container survives with no prompt/command services", true);
 await barePlugin.dispose();
+
+// --- client bundle: a LATE locale service must still get the dictionaries ----
+//
+// Regression guard. The browser half registers its row dictionaries through the
+// `locale` service, which is NOT a bundle-level requirement (only `slots` is).
+// `slots` becomes available before `settingsScope`, so this plugin's apply can
+// run before the locale plugin is up: a one-shot `ctx.get("locale")` check
+// silently skipped the registration forever and the row rendered raw keys
+// (`title`, `hint`, `lang.auto`). The registration must instead WAIT for the
+// service, which is what `ctx.inject` guarantees.
+const clientStub = (spec) => {
+	if (spec === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), useState: (value) => [value, () => {}] };
+	if (spec === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutline14: "Icon" };
+	throw new Error(`client bundle required an unavailable module: ${spec}`);
+};
+const captured = [];
+globalThis.window = { __ModuleLoader__: { load: (registration) => captured.push(registration) } };
+await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), "lib", "client.js")).href);
+delete globalThis.window;
+const clientBundle = captured[0].factory(clientStub);
+
+class FakeSlots extends Service {
+	constructor(ctx) {
+		super(ctx, "slots");
+		this.registrations = [];
+	}
+	inject(_name, callback) {
+		callback();
+		return () => {};
+	}
+	register(options, component) {
+		this.registrations.push({ options, component });
+		return () => {};
+	}
+}
+
+const dictionaries = [];
+const clientCtx = new Context();
+const clientSlots = new FakeSlots(clientCtx);
+clientCtx.provide("settingsScope", {
+	bind: () => ({
+		getSnapshot: () => ({ value: { language: "ru" }, revision: 1, writable: true }),
+		subscribe: () => () => {},
+		set: () => Promise.resolve(),
+		unset: () => Promise.resolve()
+	}),
+	describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
+});
+const clientPlugin = await clientCtx.plugin({ name: "thinking-language", inject: clientBundle.inject, apply: clientBundle.apply });
+await clientPlugin;
+
+check("client boots with slots + settingsScope and no locale", dictionaries.length === 0);
+check("client waits for locale before registering the row", clientSlots.registrations.length === 0, `rows=${String(clientSlots.registrations.length)}`);
+
+// The locale service arrives only now — and must still reach the plugin.
+clientCtx.provide("locale", {
+	register: (ns, dicts) => {
+		dictionaries.push({ ns, locales: Object.keys(dicts) });
+		return () => {};
+	}
+});
+await new Promise((resolve) => setTimeout(resolve, 0));
+
+check("late locale still receives the dictionaries", dictionaries.length === 1 && dictionaries[0].ns === "settings.thinking-language", JSON.stringify(dictionaries));
+check(
+	"the dictionaries cover every shipped locale",
+	dictionaries[0] !== undefined && ["zh", "en", "ru", "fr", "de", "es", "ja", "ko"].every((id) => dictionaries[0].locales.includes(id)),
+	JSON.stringify(dictionaries[0]?.locales ?? [])
+);
+check("the row registers once locale is up", clientSlots.registrations.length === 1, `rows=${String(clientSlots.registrations.length)}`);
+check("the row declares its dictionary namespace", clientSlots.registrations[0]?.options.locale === "settings.thinking-language");
+await clientPlugin.dispose();
 
 if (failures.length === 0) console.log("\nALL CORDIS CHECKS PASSED");
 else {

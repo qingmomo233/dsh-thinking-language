@@ -9,6 +9,18 @@ keep working exactly as before.
 
 ### Fixed
 
+- **The settings row rendered its raw keys (`title`, `hint`, `lang.auto`).**
+  A regression introduced while making the browser half's service set optional:
+  the dictionaries were registered behind a one-shot `ctx.get("locale")` check
+  while the plugin only requires `slots`. `slots` becomes available before
+  `settingsScope`, so apply could run while the locale plugin was still
+  starting, the check found nothing, and the registration was skipped for the
+  whole session — the renderer's `t` seat then fell back to the key itself. The
+  dictionaries now register on a `ctx.inject(["locale"])` branch that **waits**
+  for the service, and the row waits for it as well (the slot renderer treats a
+  declared `locale` namespace with no installed locale face as a fatal assembly
+  error). `cordis-check.mjs` reproduces the late-locale boot and fails if the
+  registration stops waiting.
 - **"Follow the system (auto)" only knew about English.** Every locale except
   `en` — including `zh-TW`, `ja`, `ko`, and `de` — resolved to Simplified
   Chinese. The locale tag is now matched hierarchically over the whole catalog
@@ -69,7 +81,10 @@ keep working exactly as before.
 ### Changed
 
 - `lib/types/*.d.ts` describe the full exported surface.
-- The package declares `npm test`.
+- The package declares `npm test`, and `@deepseek-ai/cordis` is a devDependency,
+  so a fresh `pnpm install` is enough to run the checks.
+- The READMEs no longer embed a machine-specific absolute path in the local
+  install example; they use a `<plugin-dir>` placeholder instead.
 
 ### Unchanged (deliberately)
 

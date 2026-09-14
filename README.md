@@ -49,10 +49,10 @@
 dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
 ```
 
-**或从本地源码目录安装：**
+**或从本地源码目录安装**（把 `<插件目录>` 换成你自己的本地路径；该参数由 pnpm 在配置目录下解析，所以请给出插件目录本身）：
 
 ```bash
-dsh plugin --profile web add C:\ZiYong\ds-hs-work\dsh-plugin-thinking-language
+dsh plugin --profile web add <插件目录>
 ```
 
 该命令会把插件安装到配置目录，并因其声明了 `dsh.bundle.patch` 而自动追加到
@@ -123,7 +123,8 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 | 测试 | `smoke-test.mjs` | 宿主注册、语言匹配矩阵、读写句柄兼容、浏览器 bundle 漂移与降级路径、UI 文案锁定 |
 
 ```bash
-node smoke-test.mjs   # 或 npm test
+pnpm install   # 安装测试依赖（@deepseek-ai/cordis、@deepseek-ai/schemastery）
+npm test       # smoke-test.mjs + cordis-check.mjs
 ```
 
 两端共享 `thinking-language` 命名空间，任一处修改都会同步到另一处。
