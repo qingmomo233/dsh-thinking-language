@@ -3,7 +3,7 @@
 // registered, the system-prompt section exists and its text thunk reads the
 // current setting per assembly, and the /thinking-language command registers
 // and its handler updates the settings document.
-import { apply } from "file:///C:/ZiYong/ds-hs-work/dsh-plugin-thinking-language/lib/index.js";
+import { apply } from "./lib/index.js";
 
 const registrations = { namespaces: [], sections: [], contexts: [], commands: [] };
 const document = {};
