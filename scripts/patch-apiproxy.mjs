@@ -1,69 +1,135 @@
 #!/usr/bin/env node
 /**
- * dsh-thinking-language — settings exposure patch.
+ * dsh-thinking-language - settings-exposure patch for very old harnesses.
  *
- * DeepSeek Harness intentionally keeps a hard-coded allowlist of settings
- * namespaces that the browser may read/write (WEB_SETTINGS_NAMESPACES in
- * `@deepseek-ai/dsh-host-apiproxy`). The comment above that list says exposing
- * a plugin-owned namespace "is a decision made here rather than by the
- * registering plugin" and that moving the declaration to `settings.register()`
- * "is deferred work". Until that lands, a third-party plugin's namespace is
- * registered host-side but answers `settings-not-exposed` to the browser, so
- * the Settings picker would render but never persist.
+ * History of DeepSeek Harness settings exposure:
  *
- * This script makes the one-line allowlist edit idempotently across every
- * installed copy of dsh-host-apiproxy it can find:
+ *  - DSH <= 0.2.3 (dsh-host-apiproxy@0.1.0-rc.5) kept a hard-coded allowlist
+ *    (`WEB_SETTINGS_NAMESPACES`) of the settings namespaces the browser may
+ *    read and write. A plugin-owned namespace was registered host-side but
+ *    answered `settings-not-exposed` to the browser, so the Settings picker
+ *    rendered but never persisted. Those builds need the one-line allowlist
+ *    edit below.
  *
- *   1. any path passed as a CLI argument (a lib/index.js or a package root)
- *   2. every `@deepseek-ai/dsh-host-apiproxy` under `$DSH_HOME/profiles` node_modules trees
- *      (default `$DSH_HOME` = `~/.dsh`)
+ *  - DSH >= 0.2.6 exposes every registered namespace: the wire schema in
+ *    `dsh-host-apiproxy` has no allowlist at all, and the settings controller
+ *    answers with every registration. DSH >= 0.2.9 removed
+ *    `dsh-host-apiproxy` entirely. On those builds there is nothing to patch.
+ *
+ * Editing another package's shipped bytes is a last resort, so this script:
+ *
+ *  - detects the allowlist instead of assuming it (absence is the common case
+ *    now, and is reported as "exposure is automatic");
+ *  - defaults to a dry run and prints what it would do; pass --write to apply;
+ *  - writes a `<file>.dsh-thinking-language.bak` backup before the first edit;
+ *  - refuses to guess: a file whose allowlist shape it cannot parse is left
+ *    untouched and reported, never partially edited.
  *
  * Usage:
- *   node scripts/patch-apiproxy.mjs
- *   node scripts/patch-apiproxy.mjs <path-to-dsh-host-apiproxy-lib-index.js> ...
+ *   node scripts/patch-apiproxy.mjs                 # dry run: find + report
+ *   node scripts/patch-apiproxy.mjs --write         # apply where needed
+ *   node scripts/patch-apiproxy.mjs --write <path>  # explicit lib/index.js or package root
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, basename } from "node:path";
-import { readdirSync } from "node:fs";
+import { basename, join } from "node:path";
 
-const TARGET = '"thinking-language",';
-const NEEDLE = /(const WEB_SETTINGS_NAMESPACES = \[\n)((?:\t"[^"]+",\n)+)(\t\]);/;
+/** The allowlist entry to add. */
+const ENTRY = '"thinking-language",';
+/** The allowlist declaration; only present on DSH <= 0.2.3. */
+const ALLOWLIST_OPEN = "WEB_SETTINGS_NAMESPACES";
+/** Backup suffix for the pre-edit bytes. */
+const BACKUP_SUFFIX = ".dsh-thinking-language.bak";
 
-/** Apply the allowlist edit to one lib/index.js; returns true when changed. */
+const args = process.argv.slice(2);
+const write = args.includes("--write");
+const explicit = args.filter((arg) => !arg.startsWith("--"));
+
+/**
+ * Apply the allowlist edit to one module file.
+ * @param file - path to a `lib/index.js` that may carry the allowlist.
+ * @returns "patched", "present", "automatic" (no allowlist), or "unknown".
+ */
 function patchFile(file) {
 	const source = readFileSync(file, "utf8");
-	if (!source.includes(TARGET)) {
-		const match = NEEDLE.exec(source);
-		if (!match) {
-			console.error(`  !! could not locate WEB_SETTINGS_NAMESPACES in ${file}`);
-			return false;
-		}
-		const entries = match[2];
-		const anchor = entries.includes('\t"permission",\n') ? '\t"permission",\n' : entries.split("\n")[0] + "\n";
-		const next = match[1] + entries.replace(anchor, anchor + TARGET + "\n") + match[3];
-		writeFileSync(file, source.replace(match[0], next));
-		console.log(`  patched ${file}`);
-		return true;
+	if (source.includes(ENTRY)) {
+		console.log("  already exposed: " + file);
+		return "present";
 	}
-	console.log(`  already patched ${file}`);
-	return false;
+	const open = source.indexOf(ALLOWLIST_OPEN);
+	if (open === -1) {
+		console.log("  no " + ALLOWLIST_OPEN + " allowlist: exposure is automatic on this harness (" + file + ")");
+		return "automatic";
+	}
+	const bracket = source.indexOf("[", open);
+	const newline = bracket === -1 ? -1 : source.indexOf("\n", bracket);
+	if (bracket === -1 || newline === -1) {
+		console.error("  !! could not parse the " + ALLOWLIST_OPEN + " array in " + file + "; leaving it untouched");
+		return "unknown";
+	}
+	// Insert at the top of the array, reusing the indentation of the first entry.
+	const firstEntry = source.slice(newline + 1);
+	const indent = (/^[ \t]*/.exec(firstEntry) ?? [""])[0];
+	const insertAt = newline + 1;
+	const next = source.slice(0, insertAt) + indent + ENTRY + "\n" + source.slice(insertAt);
+	if (!write) {
+		console.log("  would add " + ENTRY + " to the allowlist in " + file + "; re-run with --write to apply");
+		return "patched";
+	}
+	const backup = file + BACKUP_SUFFIX;
+	if (!existsSync(backup)) copyFileSync(file, backup);
+	writeFileSync(file, next);
+	console.log("  patched " + file + " (backup: " + backup + ")");
+	return "patched";
 }
 
-/** The dsh-host-apiproxy lib/index.js under one node_modules root, if present. */
-function candidate(nmRoot) {
-	const file = join(nmRoot, "@deepseek-ai", "dsh-host-apiproxy", "lib", "index.js");
+/** The `dsh-host-apiproxy` module under one `node_modules` root, if present. */
+function candidate(modulesRoot) {
+	const file = join(modulesRoot, "@deepseek-ai", "dsh-host-apiproxy", "lib", "index.js");
 	return existsSync(file) ? [file] : [];
 }
 
-const dshHome = process.env.DSH_HOME ?? join(homedir(), ".dsh");
-const profilesRoot = join(dshHome, "profiles");
-const profileNames = existsSync(profilesRoot) ? readdirSync(profilesRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name) : [];
-const candidates = [
-	...process.argv.slice(2).map((arg) => (basename(arg) === "index.js" ? arg : join(arg, "lib", "index.js"))),
-	...candidate(join(profilesRoot, "node_modules")),
-	...profileNames.flatMap((name) => candidate(join(profilesRoot, name, "node_modules")))
-];
-for (const file of [...new Set(candidates)]) if (existsSync(file)) patchFile(file);
+/**
+ * Every plausible DSH home: DSH_HOME first, then the desktop app's dsh-home,
+ * then the classic ~/.dsh.
+ */
+function dshHomes() {
+	const homes = [];
+	if (process.env.DSH_HOME) homes.push(process.env.DSH_HOME);
+	homes.push(join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "Deepseek-Harness-Desktop", "dsh-home"));
+	homes.push(join(homedir(), ".dsh"));
+	return [...new Set(homes)];
+}
 
-console.log("done");
+/** Every `profiles` node_modules tree under one DSH home. */
+function homeCandidates(dshHome) {
+	const files = candidate(join(dshHome, "node_modules"));
+	const profilesRoot = join(dshHome, "profiles");
+	if (!existsSync(profilesRoot)) return files;
+	files.push(...candidate(join(profilesRoot, "node_modules")));
+	for (const entry of readdirSync(profilesRoot, { withFileTypes: true })) {
+		if (entry.isDirectory()) files.push(...candidate(join(profilesRoot, entry.name, "node_modules")));
+	}
+	return files;
+}
+
+const files = explicit.map((arg) => (basename(arg) === "index.js" ? arg : join(arg, "lib", "index.js")));
+for (const home of dshHomes()) files.push(...homeCandidates(home));
+
+const unique = [...new Set(files)].filter((file) => existsSync(file));
+if (unique.length === 0) {
+	console.log("no dsh-host-apiproxy found - this harness exposes every registered settings namespace automatically, so no patch is needed.");
+	process.exit(0);
+}
+
+console.log(write ? "applying the settings-exposure patch..." : "checking the settings-exposure patch (dry run; pass --write to apply)...");
+const results = unique.map(patchFile);
+const count = (value) => results.filter((result) => result === value).length;
+const summary = [
+	"done: " + count("patched") + (write ? " patched" : " to patch"),
+	count("present") + " already exposed",
+	count("automatic") + " automatic",
+	count("unknown") + " unparsed"
+].join(", ");
+console.log(summary);
+if (count("unknown") > 0) process.exitCode = 1;
