@@ -19,9 +19,13 @@ keep working exactly as before.
 - **The schema default was applied on every write.** Selecting "auto" now
   clears the stored field (leaving the schema default in charge) instead of
   writing the literal `"auto"`.
-- **The README's "new sessions only" claim was wrong.** The per-step prompt
-  context already applied a switch to the current session's next model call;
-  the copy now says so.
+- **The `auto` command reply is byte-identical.** `describeLanguage` still
+  answers `auto (follow the system)`.
+- **No user-visible copy changed.** The row's hint and the usage step still
+  describe the system-prompt instruction, which is evaluated per prompt assembly
+  and therefore applies to new sessions. A separately registered prompt context
+  additionally restates the choice on every model call, but the copy was left
+  untouched rather than "corrected" — see *Unchanged* below.
 
 ### Compatibility
 
@@ -41,9 +45,10 @@ keep working exactly as before.
   `React.createElement` when available, so `react/jsx-runtime` is no longer
   required by the bundle.
 - **The picker can no longer drift from the host catalog**: the settings schema
-  carries a label per enum value and the row derives its entries from
-  `settingsScope.describe()`, with a bundled fallback and a test that fails on
-  drift.
+  carries a label per enum value (the endonym, e.g. `简体中文`) and the row
+  derives its entries from `settingsScope.describe()`, with a bundled fallback
+  and a test that fails on drift. The rendered labels are byte-for-byte what
+  the hard-coded table used to show.
 - `settings.register()` failures, `describe()` failures, refused writes, and a
   missing settings transport are now reported through the harness logger.
 - `scripts/patch-apiproxy.mjs` is a **dry run by default** (`--write` to
@@ -65,6 +70,13 @@ keep working exactly as before.
 
 - `lib/types/*.d.ts` describe the full exported surface.
 - The package declares `npm test`.
+
+### Unchanged (deliberately)
+
+- Every user-visible string: the row's title/hint and the `lang.auto` label in
+  all eight dictionaries, and the endonym shown for each entry in the dropdown.
+  This release only touches compatibility, robustness, and the `auto` locale
+  mapping.
 
 ## 1.1.0
 

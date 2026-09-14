@@ -293,7 +293,9 @@ check(
 	`client=${clientIds.length} host=${expectedIds.length}`
 );
 const clientOptions = [...clientSource.matchAll(/\{ id: "([^"]+)", label: "([^"]*)" \}/g)].map((match) => ({ id: match[1], label: match[2] }));
-const hostLabels = THINKING_LANGUAGES.map((language) => ({ id: language.id, label: `${language.native} · ${language.name}` }));
+// The picker must show exactly what it showed before the refactor: the endonym,
+// with no English name appended.
+const hostLabels = THINKING_LANGUAGES.map((language) => ({ id: language.id, label: language.native }));
 check(
 	"client fallback labels match the host schema labels",
 	clientOptions.length === hostLabels.length && clientOptions.every((entry, index) => entry.id === hostLabels[index].id && entry.label === hostLabels[index].label)
@@ -450,9 +452,53 @@ const unionUid = schemaJson.refs[String(schemaJson.uid)].dict[THINKING_LANGUAGE_
 const union = schemaJson.refs[String(unionUid)];
 const described = union.list.map((uid) => schemaJson.refs[String(uid)]);
 check("schema enum carries every id", described.length === expectedIds.length && described.every((node, index) => node.value === expectedIds[index]));
-check("schema enum carries labels", described.every((node) => typeof node.meta?.description === "string" && node.meta.description.length > 0));
+check("schema enum carries labels for every language", described.slice(1).every((node) => typeof node.meta?.description === "string" && node.meta.description.length > 0));
+check("schema leaves auto unlabelled, as before", described[0]?.value === THINKING_LANGUAGE_DEFAULT && described[0]?.meta?.description === undefined);
+// The picker label must be the endonym alone — the string the row has always
+// rendered. A label carrying extra text would silently change the UI.
+check(
+	"schema labels are the plain endonyms",
+	described.slice(1).every((node, index) => node.meta.description === THINKING_LANGUAGES[index]?.native),
+	described.slice(0, 3).map((node) => node.meta?.description).join(" | ")
+);
 
-// --- 7. package manifest ---------------------------------------------------
+// --- 7. user-visible copy is frozen ----------------------------------------
+// Everything the user reads on the settings row, in every shipped dictionary.
+// These literals changed once by accident during a refactor; this check exists
+// so a compatibility change can never alter the UI again.
+const FROZEN_COPY = [
+	'"title": "思考语言"',
+	'"hint": "选择模型思考过程（推理/链式思考）使用的语言，新会话生效。"',
+	'"lang.auto": "跟随系统（自动）"',
+	'"title": "Thinking language"',
+	'"hint": "Language used for the model\'s reasoning/thinking process. Applies to new sessions."',
+	'"lang.auto": "Follow the system (auto)"',
+	'"title": "Язык размышлений"',
+	'"hint": "Язык для процесса рассуждений модели. Применяется к новым сессиям."',
+	'"lang.auto": "Следовать за системой (авто)"',
+	'"title": "Langue de réflexion"',
+	'"hint": "Langue utilisée pour le raisonnement du modèle. S\'applique aux nouvelles sessions."',
+	'"lang.auto": "Suivre le système (auto)"',
+	'"title": "Denksprache"',
+	'"hint": "Sprache für den Denkprozess des Modells. Gilt für neue Sitzungen."',
+	'"lang.auto": "Dem System folgen (auto)"',
+	'"title": "Idioma de razonamiento"',
+	'"hint": "Idioma para el proceso de razonamiento del modelo. Se aplica a sesiones nuevas."',
+	'"lang.auto": "Seguir al sistema (auto)"',
+	'"title": "思考言語"',
+	'"hint": "モデルの思考プロセスで使う言語。新しいセッションに適用されます。"',
+	'"lang.auto": "システムに従う（自動）"',
+	'"title": "사고 언어"',
+	'"hint": "모델의 추론 과정에 사용할 언어입니다. 새 세션에 적용됩니다."',
+	'"lang.auto": "시스템 따르기 (자동)"'
+];
+const missingCopy = FROZEN_COPY.filter((literal) => !clientSource.includes(literal));
+check("row copy is byte-for-byte unchanged", missingCopy.length === 0, missingCopy.join(" | "));
+const frozenClasses = ["dshtl_row", "dshtl_rowText", "dshtl_title", "dshtl_desc", "dshtl_selector", "dshtl_chevron"];
+const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
+check("row CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
+
+// --- 8. package manifest ---------------------------------------------------
 // The harness reads these fields at boot: a missing bundle path or a
 // `cordis.patch.yml` that names a different package fails the whole profile.
 const manifest = JSON.parse(readFileSync(join(hostDir, "package.json"), "utf8"));

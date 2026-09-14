@@ -18,11 +18,10 @@ languages, or "auto" to follow the system locale.
   title and hint on the left, the selector pill (dropdown menu) on the right.
 - **Prompt injection** — when a language is selected the plugin injects a
   system-prompt instruction telling the model to write its internal reasoning
-  in that language, plus a **per-step dynamic reminder** (a prompt context)
-  restated right after the user message on every model call. A switch therefore
-  takes effect on the **next model call of the current session** — no restart,
-  no new session. With *Follow the system (auto)* the language follows the
-  system UI locale (Settings → General → Language).
+  in that language. With *Follow the system (auto)* the instruction uses the
+  system UI locale (Settings → General → Language; defaults to Chinese). The
+  instruction is evaluated per prompt assembly, so it applies to every **new
+  session**. Existing sessions keep the prompt they already composed.
 - **`/thinking-language` command** — set or inspect the language directly from
   chat, e.g. `/thinking-language ru` or `/thinking-language auto`. Ids, English
   names, native names, and unique prefixes (`japan`) all work.
@@ -98,7 +97,8 @@ node scripts/patch-apiproxy.mjs --write  # apply (writes a .dsh-thinking-languag
 1. Open **Settings** (gear icon) → **General**.
 2. Pick a language in the **Thinking language** row (or choose *Follow the
    system (auto)* to use the system UI locale).
-3. It applies from the next model call — no restart and no new session needed.
+3. Start a **new session** — its thinking process is written in the selected
+   language.
 
 Or from chat:
 
@@ -126,19 +126,19 @@ The plugin degrades instead of failing when a service or dependency is absent:
 | Unrecognised system language tag | falls back to English (matching the shell locale plugin) |
 
 Both halves share one catalog: the picker's entries are derived from the
-**host-registered settings schema** (each enum value carries a
-`简体中文 · Simplified Chinese` label), the browser keeps only a fallback copy,
-and `smoke-test.mjs` fails when the two drift apart.
+**host-registered settings schema** (each enum value carries its endonym, e.g.
+`简体中文` — exactly what the picker showed before), the browser keeps only a
+fallback copy, and `smoke-test.mjs` fails when the two drift apart.
 
 ## How it works
 
 | Part | File | Role |
 | --- | --- | --- |
 | Pure core | `lib/languages.js` | catalog, system-locale tag matching, instruction/reminder copy, command parsing (no cordis, no browser globals — directly unit-testable) |
-| Host entry | `lib/index.js` | registers the `thinking-language` settings namespace and its labelled schema, the `app:thinking-language` system-prompt section (order 85), the per-step reminder (order 1000), and the `/thinking-language` command |
-| Browser bundle | `lib/client.js` | registers the picker row into the `settings.general.item` slot, reads/writes the same namespace through the client settings scope, and derives its entries from the host schema |
+| Host entry | `lib/index.js` | registers the `thinking-language` settings namespace, the `app:thinking-language` system-prompt section (order 85), and the `/thinking-language` command |
+| Browser bundle | `lib/client.js` | registers the picker row into the `settings.general.item` slot and reads/writes the same namespace through the client settings scope |
 | Bundle patch | `cordis.patch.yml` | inserts the plugin row into the composed profile tree |
-| Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths |
+| Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths, frozen UI copy |
 
 ```bash
 node smoke-test.mjs   # or npm test
