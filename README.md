@@ -63,14 +63,15 @@ bundle 层与客户端模块扫描都在启动时读取，仅刷新页面不够�
 > 如果你安装过旧名，先执行 `dsh plugin --profile web remove dsh-plugin-thinking-language`，
 > 再按上面的命令安装，否则配置文件里会出现两个插件行。
 
-### 关于设置暴露补丁（仅极旧版本需要）
+### 关于设置暴露补丁（仅极旧构建需要）
 
-DSH 0.2.6 起，服务端会向浏览器暴露**全部**已注册的设置命名空间；0.2.9 起
-`dsh-host-apiproxy` 已被移除。因此当前版本**无需任何补丁**。
+当前官方包（如 `@deepseek-ai/dsh-*@0.2.0-rc.2` / DeepSeek Harness Desktop `0.2.0-rc.2`）
+**无需任何补丁**：浏览器可以读写全部已注册的设置命名空间，`dsh-host-apiproxy`
+及其 `WEB_SETTINGS_NAMESPACES` 白名单在本机运行时中并不存在。
 
-只有在 DSH ≤ 0.2.3（`dsh-host-apiproxy@0.1.0-rc.5`）这类仍使用硬编码白名单
-`WEB_SETTINGS_NAMESPACES` 的旧版本上，才需要把 `thinking-language` 加入白名单，
-否则设置行能显示但无法保存（浏览器收到 `settings-not-exposed`）。脚本会先**检测**白名单是否存在：
+只有在仍带硬编码白名单 `WEB_SETTINGS_NAMESPACES` 的极旧构建上，才需要把
+`thinking-language` 加入白名单，否则设置行能显示但无法保存（浏览器收到
+`settings-not-exposed`）。脚本会先**检测**白名单是否存在，有才改：
 
 ```bash
 node scripts/patch-apiproxy.mjs          # 预演：只检测并报告，不修改任何文件
@@ -94,6 +95,7 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 
 ## 兼容性
 
+已在 DeepSeek Harness Desktop / `@deepseek-ai/dsh-*` **`0.2.0-rc.2`**（`dsh -V`）上验证。
 插件在以下方向做过兼容性处理，缺少某个服务或依赖时**降级**而不是整体失效：
 
 | 场景 | 行为 |
@@ -101,7 +103,10 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 | Harness 没有 `systemPrompt` | 设置命名空间与 `/thinking-language` 命令仍可用 |
 | Harness 没有 `commands` | 设置命名空间与提示词注入仍可用 |
 | `settings.register()` 被拒绝（重名 / 更严格的签名） | 记录一次警告，其余功能继续通过 settings 服务读写 |
-| Harness 无 `settingsScope`（客户端设置通道） | 跳过设置行并在启动后记录一次警告，命令侧不受影响 |
+| Harness 无 `register()`，按 Loader entry id 读写设置文档 | 自动改用 `describe()` / `update()` 读写 |
+| 客户端设置通道是 `configForms`（较新） | 用 `configForms` 注册设置行 |
+| 客户端设置通道是 `settingsScope`（较旧） | 用 `settingsScope` 注册设置行；两者同时存在时 `configForms` 优先且只注册一行 |
+| Harness 无任何设置传输通道 | 跳过设置行并在启动后记录一次警告，命令侧不受影响 |
 | Harness 未提供 `locale` 服务 | 设置行使用内置文案（`lang.auto` 等）而非崩溃 |
 | Harness 未提供平台 UI primitives 模块 | 跳过设置行并记录警告，不影响其他插件 |
 | `describe()` 不可用或 schema 结构不同 | 选择列表回退到内置语言表 |

@@ -2,19 +2,18 @@
 /**
  * dsh-thinking-language - settings-exposure patch for very old harnesses.
  *
- * History of DeepSeek Harness settings exposure:
+ * How settings exposure works (verified against official packages
+ * `@deepseek-ai/dsh-*@0.2.0-rc.2` / DeepSeek Harness Desktop `0.2.0-rc.2`):
  *
- *  - DSH <= 0.2.3 (dsh-host-apiproxy@0.1.0-rc.5) kept a hard-coded allowlist
+ *  - Current official builds expose every registered settings namespace to the
+ *    browser. Neither `dsh-host-apiproxy` nor a `WEB_SETTINGS_NAMESPACES`
+ *    allowlist is present in the runtime, so there is nothing to patch.
+ *
+ *  - A very old build that still ships a hard-coded allowlist
  *    (`WEB_SETTINGS_NAMESPACES`) of the settings namespaces the browser may
- *    read and write. A plugin-owned namespace was registered host-side but
- *    answered `settings-not-exposed` to the browser, so the Settings picker
- *    rendered but never persisted. Those builds need the one-line allowlist
- *    edit below.
- *
- *  - DSH >= 0.2.6 exposes every registered namespace: the wire schema in
- *    `dsh-host-apiproxy` has no allowlist at all, and the settings controller
- *    answers with every registration. DSH >= 0.2.9 removed
- *    `dsh-host-apiproxy` entirely. On those builds there is nothing to patch.
+ *    read and write would register a plugin namespace host-side but answer
+ *    `settings-not-exposed` to the browser, so the Settings picker renders but
+ *    never persists. Those builds need the one-line allowlist edit below.
  *
  * Editing another package's shipped bytes is a last resort, so this script:
  *
@@ -36,7 +35,7 @@ import { basename, join } from "node:path";
 
 /** The allowlist entry to add. */
 const ENTRY = '"thinking-language",';
-/** The allowlist declaration; only present on DSH <= 0.2.3. */
+/** The allowlist declaration; only present on very old builds. */
 const ALLOWLIST_OPEN = "WEB_SETTINGS_NAMESPACES";
 /** Backup suffix for the pre-edit bytes. */
 const BACKUP_SUFFIX = ".dsh-thinking-language.bak";

@@ -77,17 +77,17 @@ client-module scan are read at boot, so a page refresh alone is not enough.
 > first (`dsh plugin --profile web remove dsh-plugin-thinking-language`) so the
 > profile does not carry two rows for the same plugin.
 
-### About the settings-exposure patch (very old harnesses only)
+### About the settings-exposure patch (very old builds only)
 
-Since DSH 0.2.6 the host exposes **every** registered settings namespace to the
-browser, and DSH 0.2.9 removed `dsh-host-apiproxy` entirely. Current builds
-therefore need **no patch at all**.
+Current official packages (for example `@deepseek-ai/dsh-*@0.2.0-rc.2` / DeepSeek
+Harness Desktop `0.2.0-rc.2`) need **no patch at all**: the browser can read and
+write every registered settings namespace, and neither `dsh-host-apiproxy` nor
+its `WEB_SETTINGS_NAMESPACES` allowlist exists in the runtime on disk.
 
-Only DSH ≤ 0.2.3 (the `dsh-host-apiproxy@0.1.0-rc.5` generation) still keeps a
-hard-coded `WEB_SETTINGS_NAMESPACES` allowlist; there a plugin-owned namespace
-registers host-side but the browser gets `settings-not-exposed`, so the row
-renders but never persists. The script detects the allowlist before touching
-anything:
+Only a very old build that still ships a hard-coded `WEB_SETTINGS_NAMESPACES`
+allowlist needs `thinking-language` added to that list — otherwise the row
+renders but never persists (the browser gets `settings-not-exposed`). The script
+detects the allowlist before touching anything:
 
 ```bash
 node scripts/patch-apiproxy.mjs          # dry run: detect and report only
@@ -113,14 +113,19 @@ Or from chat:
 
 ## Compatibility
 
-The plugin degrades instead of failing when a service or dependency is absent:
+Verified on DeepSeek Harness Desktop / `@deepseek-ai/dsh-*` **`0.2.0-rc.2`**
+(`dsh -V`). The plugin degrades instead of failing when a service or dependency
+is absent:
 
 | Situation | Behaviour |
 | --- | --- |
 | Harness without `systemPrompt` | settings namespace and `/thinking-language` keep working |
 | Harness without `commands` | settings namespace and prompt injection keep working |
 | `settings.register()` refused (duplicate / stricter signature) | one warning, the rest keeps reading and writing through the settings service |
-| Harness without `settingsScope` (client settings transport) | the row is skipped and reported once after boot; the command is unaffected |
+| Harness has no `register()` (document keyed by Loader entry id) | reads/writes fall back to `describe()` / `update()` |
+| Client settings transport is `configForms` (newer) | the row registers through `configForms` |
+| Client settings transport is `settingsScope` (older) | the row registers through `settingsScope`; when both exist `configForms` claims it once |
+| Harness has no settings transport at all | the row is skipped and reported once after boot; the command is unaffected |
 | Harness without the `locale` service | the row uses its built-in copy instead of crashing |
 | Harness without the platform UI primitives module | the row is skipped and reported; other plugins are unaffected |
 | `describe()` unavailable or a different schema shape | the picker falls back to the bundled catalog |

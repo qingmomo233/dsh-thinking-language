@@ -35,9 +35,12 @@ export declare function readEnumField(schema: Record<string, unknown>, field: st
 export declare function readCatalog(described: unknown, ns: string): ThinkingLanguageOption[];
 
 /**
- * Required client services. Only `slots` is hard: `settingsScope` is acquired
+ * Required client services. Only `slots` is hard: the settings transport
+ * (`configForms` on newer harnesses, `settingsScope` on older ones) is acquired
  * through its own `ctx.inject` branch and `locale` is optional, so a leaner
- * harness loses individual features instead of the whole bundle.
+ * harness loses individual features instead of the whole bundle. When both
+ * transports are present, `configForms` claims the row and `settingsScope`
+ * stays silent.
  */
 export declare const inject: ['slots'];
 /** Client plugin body: register the picker row into Settings → General. */

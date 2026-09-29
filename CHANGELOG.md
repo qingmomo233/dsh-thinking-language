@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.3.0
+
+Dual-track settings-transport compatibility. No settings migration is required:
+the `thinking-language` namespace, its `language` field, its stored values, the
+plugin name (`thinking-language`), and the `/thinking-language` command all
+keep working exactly as before. User-visible copy is unchanged.
+
+Verified against DeepSeek Harness Desktop / `@deepseek-ai/dsh-*` **`0.2.0-rc.2`**.
+
+### Added
+
+- **Host: Loader-entry document service.** A harness that keys settings
+  documents by Loader entry id (no `settings.register()`) now works: the
+  preference is read through `describe()` (1s TTL cache, invalidated on write)
+  and written through `update(entryId, patch)`. The schema field is marked
+  `volatile` so the Host will serve an editable document.
+- **Client: `configForms` transport.** Newer harnesses expose `configForms`
+  (`get` / `whileServed` / `describe().getSnapshot().view`) instead of
+  `settingsScope`. The row registers through whichever transport is present;
+  when both exist, `configForms` claims it and the legacy branch stays silent.
+- **Client: platform store and chevron glyph fallbacks.** Prefers
+  `@deepseek-ai/dsh-client-store.defineStore` when the harness exposes it, and
+  accepts any of the chevron icon names that have shipped.
+
+### Compatibility
+
+- **Host** still prefers `settings.register()` + scope `update()` when the
+  harness provides the namespace API; a refused registration is logged once and
+  the command/prompt surfaces keep working through the settings service.
+- **Client** still registers through `settingsScope.bind({ namespace })` on
+  older harnesses. Optional services are probed with `ctx.get()` so a missing
+  service cannot take the row down (a bare property read on a cordis context
+  throws).
+- The picker catalog is still derived from the host-registered schema, with the
+  bundled table as last-resort fallback.
+
 ## 1.2.0
 
 Compatibility-focused refactor. No settings migration is required: the
@@ -65,8 +101,7 @@ keep working exactly as before.
   missing settings transport are now reported through the harness logger.
 - `scripts/patch-apiproxy.mjs` is a **dry run by default** (`--write` to
   apply), backs the file up before editing, and reports "exposure is automatic"
-  on harnesses that no longer carry the `WEB_SETTINGS_NAMESPACES` allowlist
-  (DSH ≥ 0.2.6).
+  on harnesses that no longer carry the `WEB_SETTINGS_NAMESPACES` allowlist.
 
 ### Added
 

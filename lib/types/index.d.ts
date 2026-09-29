@@ -38,9 +38,11 @@ export declare const Config: import('@deepseek-ai/schemastery').SchemasteryObjec
 }>;
 
 /**
- * The two service shapes a read accepts: the settings service (`get(ns)`) or
- * the namespace scope returned by `settings.register()` (`get()` with no
- * argument). Passing the wrong arity is tolerated, not fatal.
+ * The service shapes a read accepts: the settings service (`get(ns)`), the
+ * namespace scope returned by `settings.register()` (`get()` with no argument),
+ * or a Loader-entry document service that only exposes `describe()` — the host
+ * bridges that last shape into a `get()` handle. Passing the wrong arity is
+ * tolerated, not fatal.
  */
 export interface SettingsReader {
     get(nsOrNothing?: string): unknown;
