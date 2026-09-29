@@ -270,6 +270,52 @@ check("refused registration still writes through the service", failingDocument[T
 systemPrompt.section = originalSection;
 commands.register = originalRegister;
 
+// A harness that keys settings documents by Loader entry id exposes no
+// `register()`: reads go through `describe()`, writes through `update()`.
+resetRegistration();
+const entryDocument = { [THINKING_NAMESPACE]: { language: "ja" }, locale: { preference: "en" } };
+const entrySettings = {
+	describe() {
+		return Object.entries(entryDocument).map(([ns, value]) => ({ ns, value }));
+	},
+	async update(ns, patch) {
+		entryDocument[ns] = { ...(entryDocument[ns] ?? {}), ...patch };
+	}
+};
+const entrySections = [];
+const entryCommands = [];
+const entryCtx = {
+	get(name) {
+		if (name === "settings") return entrySettings;
+		if (name === "systemPrompt") return { section: (s) => entrySections.push(s), context: () => {} };
+		if (name === "commands") return { register: (def) => { entryCommands.push(def); return () => {}; } };
+		return void 0;
+	},
+	effect(fn) {
+		const disposer = fn();
+		return () => {
+			if (typeof disposer === "function") disposer();
+		};
+	},
+	inject(services, callback) {
+		if (services.some((name) => entryCtx.get(name) === undefined)) return () => {};
+		callback(entryCtx);
+		return () => {};
+	}
+};
+for (const name of ["settings", "systemPrompt", "commands", "logger"]) {
+	Object.defineProperty(entryCtx, name, { get: () => entryCtx.get(name) });
+}
+apply(entryCtx);
+check("no-register harness skips namespace registration", registrations.namespaces.filter((entry) => String(entry.ns) === THINKING_NAMESPACE).length === 1);
+const entrySection = entrySections.find((section) => section.name === "app:thinking-language");
+check("no-register harness reads through describe()", typeof entrySection?.text === "function" && entrySection.text().includes("日本語"));
+const entryHandler = entryCommands.find((def) => def.name === "thinking-language")?.handler;
+const entrySet = await entryHandler({ rawInput: "fr", agent: "a", signal: new AbortController().signal, commandId: "c3" });
+check("no-register harness writes through update()", entrySet.kind === "success" && entryDocument[THINKING_NAMESPACE]?.language === "fr");
+// A subsequent read must observe the write (the describe cache is invalidated).
+check("no-register harness invalidates its read cache", entrySections.find((section) => section.name === "app:thinking-language").text().includes("Français"));
+
 // --- 4. command argument + text helpers ------------------------------------
 check("empty argument asks to show", parseCommandArgument("  ").kind === "show");
 check("reset alias maps to auto", parseCommandArgument("reset").id === THINKING_LANGUAGE_DEFAULT);
@@ -355,7 +401,7 @@ if (clientExports !== undefined) {
 	check("client falls back on an unparseable schema", wrongShape.length === expectedIds.length);
 
 	// apply() must reach the row registration on a complete harness and degrade
-	// (registering dictionaries only) when the settings scope is absent.
+	// (registering dictionaries only) when the settings transport is absent.
 	const slotRegistrations = [];
 	const makeClientCtx = (services) => {
 		const ctx = {
@@ -373,7 +419,7 @@ if (clientExports !== undefined) {
 			}
 		};
 		// cordis resolves services as plain context properties too, and the row
-		// branch reads `ctx.settingsScope` / `ctx.slots` directly.
+		// branch reads `ctx.configForms` / `ctx.settingsScope` / `ctx.slots` directly.
 		for (const [name, value] of Object.entries(services)) Object.defineProperty(ctx, name, { get: () => value });
 		return ctx;
 	};
@@ -409,13 +455,41 @@ if (clientExports !== undefined) {
 		describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
 	};
 	clientExports.apply(makeClientCtx({ slots, locale, settingsScope, logger: { warn: () => {} } }));
-	check("client registers the row on a complete harness", slotRegistrations.length === 1);
+	check("client registers the row on a legacy settingsScope harness", slotRegistrations.length === 1);
 	const row = slotRegistrations[0];
 	check("client row targets the General item slot", row?.options.name === "settings.general.item" && row?.options.id === "thinking-language");
 	check("client registers its dictionaries", dictionaries.length === 1 && dictionaries[0].locales.includes("zh") && dictionaries[0].locales.includes("en"));
 	const boundActions = row?.options.inject({ sync: () => {} });
 	check("client exposes a setLanguage write path", typeof boundActions?.setLanguage === "function");
 	check("client adopts the settings snapshot", typeof scopeListener === "function");
+
+	// The newer transport: `configForms` with `get`/`whileServed`/`describe`.
+	slotRegistrations.length = 0;
+	scopeListener = undefined;
+	let configListener;
+	const configHost = {
+		getSnapshot: () => scopeSnapshot,
+		subscribe: (listener) => {
+			configListener = listener;
+			return () => {};
+		},
+		set: () => Promise.resolve(),
+		unset: () => Promise.resolve()
+	};
+	const configForms = {
+		get: () => configHost,
+		whileServed: (_ns, factory) => factory(),
+		describe: () => ({ getSnapshot: () => ({ view: { namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] } }) })
+	};
+	clientExports.apply(makeClientCtx({ slots, locale, configForms, logger: { warn: () => {} } }));
+	check("client registers the row on a configForms harness", slotRegistrations.length === 1);
+	check("client derives its catalog on the configForms path", slotRegistrations[0]?.options.inject({ sync: () => {} }) && typeof configListener === "function");
+
+	// When both transports exist, the newer one claims the row and the legacy
+	// branch stays silent.
+	slotRegistrations.length = 0;
+	clientExports.apply(makeClientCtx({ slots, locale, configForms, settingsScope, logger: { warn: () => {} } }));
+	check("client prefers configForms when both transports exist", slotRegistrations.length === 1);
 
 	slotRegistrations.length = 0;
 	const degraded = [];
@@ -440,10 +514,10 @@ if (clientExports !== undefined) {
 	} finally {
 		globalThis.setTimeout = realSetTimeout;
 	}
-	check("client skips the row when the settings scope is absent", slotRegistrations.length === 0);
+	check("client skips the row when the settings transport is absent", slotRegistrations.length === 0);
 	check("client defers its availability check", timers.length === 1);
 	for (const fire of timers) fire();
-	check("client reports the missing settings transport", degraded.some((line) => String(line).includes("settingsScope")), JSON.stringify(degraded));
+	check("client reports the missing settings transport", degraded.some((line) => String(line).includes("configForms") || String(line).includes("settingsScope")), JSON.stringify(degraded));
 }
 
 // --- 6. schema metadata the client reads -----------------------------------

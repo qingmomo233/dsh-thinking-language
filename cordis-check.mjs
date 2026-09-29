@@ -238,6 +238,52 @@ check("the row registers once locale is up", clientSlots.registrations.length ==
 check("the row declares its dictionary namespace", clientSlots.registrations[0]?.options.locale === "settings.thinking-language");
 await clientPlugin.dispose();
 
+// --- client bundle: the newer `configForms` transport --------------------
+const configSlots = new FakeSlots(new Context());
+const configCtx = configSlots.ctx;
+const configHost = {
+	getSnapshot: () => ({ value: { language: "ru" }, revision: 1, writable: true }),
+	subscribe: () => () => {},
+	set: () => Promise.resolve(),
+	unset: () => Promise.resolve()
+};
+configCtx.provide("configForms", {
+	get: () => configHost,
+	whileServed: (_ns, factory) => factory(),
+	describe: () => ({ getSnapshot: () => ({ view: { namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] } }) })
+});
+const configPlugin = await configCtx.plugin({ name: "thinking-language", inject: clientBundle.inject, apply: clientBundle.apply });
+await configPlugin;
+configCtx.provide("locale", { register: () => () => {} });
+await new Promise((resolve) => setTimeout(resolve, 0));
+check("configForms transport registers the row", configSlots.registrations.length === 1, `rows=${String(configSlots.registrations.length)}`);
+check("configForms row declares its dictionary namespace", configSlots.registrations[0]?.options.locale === "settings.thinking-language");
+await configPlugin.dispose();
+
+// When both transports exist, configForms claims the row exactly once.
+const bothSlots = new FakeSlots(new Context());
+const bothCtx = bothSlots.ctx;
+bothCtx.provide("configForms", {
+	get: () => configHost,
+	whileServed: (_ns, factory) => factory(),
+	describe: () => ({ getSnapshot: () => ({ view: { namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] } }) })
+});
+bothCtx.provide("settingsScope", {
+	bind: () => ({
+		getSnapshot: () => ({ value: { language: "ru" }, revision: 1, writable: true }),
+		subscribe: () => () => {},
+		set: () => Promise.resolve(),
+		unset: () => Promise.resolve()
+	}),
+	describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
+});
+const bothPlugin = await bothCtx.plugin({ name: "thinking-language", inject: clientBundle.inject, apply: clientBundle.apply });
+await bothPlugin;
+bothCtx.provide("locale", { register: () => () => {} });
+await new Promise((resolve) => setTimeout(resolve, 0));
+check("both transports claim the row only once", bothSlots.registrations.length === 1, `rows=${String(bothSlots.registrations.length)}`);
+await bothPlugin.dispose();
+
 if (failures.length === 0) console.log("\nALL CORDIS CHECKS PASSED");
 else {
 	console.log(`\nFAILURES (${failures.length}): ${failures.join("; ")}`);
