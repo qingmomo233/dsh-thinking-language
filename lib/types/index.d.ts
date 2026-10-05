@@ -32,19 +32,40 @@ export declare const FALLBACK_THINKING_LANGUAGE: 'en';
 export declare const THINKING_LANGUAGES: ThinkingLanguage[];
 /** The catalog ids, in catalog order. */
 export declare const THINKING_LANGUAGE_IDS: string[];
-/** Durable settings schema (default `auto`; every enum value carries a label). */
+/** Durable settings schema (default `auto`; every enum value carries a label; the field is volatile on DSH 0.2.x). */
 export declare const Config: import('@deepseek-ai/schemastery').SchemasteryObject<{
-    language: string;
+    language: string | VolatileField<string>;
 }>;
 
 /**
- * The two service shapes a read accepts: the settings service (`get(ns)`) or
- * the namespace scope returned by `settings.register()` (`get()` with no
+ * The service shapes a read accepts: the settings service (`get(ns)`) or the
+ * namespace scope returned by `settings.register()` (`get()` with no
  * argument). Passing the wrong arity is tolerated, not fatal.
  */
 export interface SettingsReader {
     get(nsOrNothing?: string): unknown;
 }
+
+/**
+ * A live reference to one volatile config field. DSH 0.2.x wraps a volatile
+ * field in a frozen `{ get() }` handle whose owning runtime swaps the value in
+ * place, so the reference itself is stable and always reads current.
+ */
+export interface VolatileField<T = unknown> {
+    get(): T;
+}
+
+/**
+ * One resolved config section — this plugin's own config on DSH 0.2.x, where
+ * the loader entry *is* the settings namespace. The preference field holds
+ * either the plain value or a {@link VolatileField}.
+ */
+export interface SettingsSection {
+    [field: string]: unknown;
+}
+
+/** Every handle a read accepts, across all supported harness generations. */
+export type SettingsHandle = SettingsReader | SettingsSection;
 
 /** Normalize one locale tag into its matching chain, most specific first. */
 export declare function localeChain(locale: unknown): string[];
@@ -53,14 +74,15 @@ export declare function languageForSystemLocale(locale: unknown): ThinkingLangua
 /** The label attached to one id in the registered settings schema. */
 export declare function languageLabel(id: string): string | undefined;
 /** Read the current preference (schema default when absent or unreadable). */
-export declare function currentLanguage(settings: SettingsReader | undefined | null): string;
+export declare function currentLanguage(settings: SettingsHandle | undefined | null): string;
 /**
  * Resolve the effective thinking-language id for one settings snapshot.
  * @param settings - the handle carrying the preference.
- * @param services - optional settings service used to read `locale.preference`.
+ * @param services - optional settings service used to read `locale.preference`
+ *   (through `get(ns)` on 0.1.x and through `describe()` on 0.2.x).
  * @param systemLocale - optional browser-derived locale.
  */
-export declare function resolveLanguage(settings: SettingsReader | undefined | null, services?: SettingsReader | undefined | null, systemLocale?: string): string;
+export declare function resolveLanguage(settings: SettingsHandle | undefined | null, services?: SettingsReader | undefined | null, systemLocale?: string): string;
 /** Compose the model instruction for one language id; `auto` and unknown ids yield "". */
 export declare function thinkingInstruction(language: string | undefined): string;
 /** Compose the per-step dynamic reminder for one language id; `auto` and unknown ids yield "". */
@@ -76,5 +98,10 @@ export declare const inject: string[];
  * refusing the registration.
  */
 export declare function resetRegistration(): void;
-/** Register the settings namespace and the prompt surfaces. */
-export declare function apply(ctx: Context): void;
+/**
+ * Claim the settings namespace and register the prompt surfaces.
+ * @param ctx - host plugin context.
+ * @param config - this plugin's resolved config; on DSH 0.2.x its volatile
+ *   field is the live preference and the read handle for the prompt surfaces.
+ */
+export declare function apply(ctx: Context, config?: SettingsSection): void;

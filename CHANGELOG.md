@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.4.3
+
+### Fixed
+
+- **The settings row is served on dsh 0.2.x at last.** 1.4.2 fixed the browser
+  transport, but the row still could not appear, because the *host* half never
+  made `thinking-language` a settings namespace: 0.2.x dropped
+  `settings.register(ns, schema)` (the call threw, was logged, and was
+  swallowed), and it derives the served namespace list from the profile's
+  plugin entries instead — keyed by the entry id, with the schema taken from
+  the plugin's own exported `Config`, and **only for entries that declare a
+  volatile field** (`volatileForm()`). An unmarked schema is a namespace the
+  Settings UI can neither list nor write, which is exactly why the row stayed
+  invisible however correct the client was.
+
+  The field is now marked `.volatile()` (feature-detected, so a harness whose
+  schemastery predates the decorator keeps the 0.1.x `register()` path), and
+  `apply` declares the instance's page policy through
+  `settings.configure({ auto: false }, ctx.fiber)` the way the built-in locale
+  plugin does — the namespace draws its own row instead of an auto-generated
+  page.
+
+  The preference read follows the same split: the registered namespace scope on
+  0.1.x, and this plugin's own resolved config on 0.2.x, where a volatile field
+  is a `createVolatile()` reference the owning runtime updates in place — so a
+  language switch still needs no restart. `auto` resolves the system locale
+  through `settings.describe()` on 0.2.x, which no longer exposes `get(ns)`.
+
+  Covered by new checks in both suites: the schema's volatile marker, a live
+  field reference, a plain config section, a `describe()` projection, and a
+  0.2.x `apply` that must claim the row policy once, for its own fiber, while
+  the instruction follows the live reference.
+
 ## 1.4.2
 
 ### Fixed

@@ -113,7 +113,11 @@ apply(makeCtx());
 check("settings namespace registered", registrations.namespaces.some((entry) => String(entry.ns) === THINKING_NAMESPACE));
 check("system-prompt section registered", registrations.sections.includes("app:thinking-language"));
 check("dynamic reminder context registered", registrations.contexts.includes("app:thinking-language-reminder"));
-check("schema default is auto", Config({})[THINKING_LANGUAGE_FIELD] === THINKING_LANGUAGE_DEFAULT);
+// The 0.2.x namespace gate: `@deepseek-ai/dsh-settings` serves an entry only
+// when its schema declares a volatile field, and it edits only volatile paths —
+// an unmarked schema is a namespace the Settings UI cannot see or write.
+check("schema marks the language field volatile", Config.dict[THINKING_LANGUAGE_FIELD].meta.volatile === true);
+check("schema default resolves to auto", currentLanguage(Config({})) === THINKING_LANGUAGE_DEFAULT);
 
 // A harness without `systemPrompt` must still get its settings namespace. The
 // namespace is a process singleton, so a second apply does not re-register it.
@@ -121,6 +125,64 @@ const beforePromptless = { sections: registrations.sections.length, contexts: re
 apply(makeCtx({ withSystemPrompt: false }));
 check("prompt-less harness registers no prompt surface", registrations.sections.length === beforePromptless.sections && registrations.contexts.length === beforePromptless.contexts);
 check("the settings namespace registers once per process", registrations.namespaces.length === 1);
+
+// --- 1b. DSH 0.2.x generation: the profile entry itself is the namespace ----
+// That generation has no `register()`: the namespace is this package's profile
+// entry, served from the exported `Config`, so the only claim left to make is
+// the row-presentation policy. The preference is read from the plugin's own
+// resolved config, whose volatile field is a `createVolatile()` reference the
+// owning runtime updates in place.
+{
+	const forms = await import("./lib/index.js?form-transport");
+	const calls = { configured: [], sections: [] };
+	const policySettings = {
+		configure(presentation, owner) {
+			calls.configured.push({ presentation, owner });
+			return () => {};
+		},
+		describe: () => [{ ns: "locale", value: { preference: "ja" } }]
+	};
+	const prompt = {
+		section(section) {
+			calls.sections.push(section);
+		},
+		context() {}
+	};
+	const owner = { id: "thinking-language" };
+	const ctx = {
+		fiber: owner,
+		get(name) {
+			if (name === "settings") return policySettings;
+			if (name === "systemPrompt") return prompt;
+			return void 0;
+		},
+		effect(fn) {
+			const disposer = fn();
+			return () => {
+				if (typeof disposer === "function") disposer();
+			};
+		},
+		inject(services, callback) {
+			if (services.some((name) => ctx.get(name) === undefined)) return () => {};
+			callback(ctx);
+			return () => {};
+		}
+	};
+	// The real context resolves services as plain properties too.
+	ctx.settings = policySettings;
+	ctx.systemPrompt = prompt;
+	// The reference is mutated in place, exactly as the loader does on a live
+	// settings write.
+	let live = "fr";
+	const liveField = { get: () => live };
+	forms.apply(ctx, { [forms.THINKING_LANGUAGE_FIELD]: liveField });
+	const section = calls.sections.find((entry) => entry.name === "app:thinking-language");
+	check("0.2.x: the row policy is declared exactly once", calls.configured.length === 1);
+	check("0.2.x: the policy names this plugin's own fiber and disables the auto page", calls.configured[0]?.presentation.auto === false && calls.configured[0]?.owner === owner);
+	check("0.2.x: the live config value drives the instruction", section?.text({}).includes("Français") === true, section?.text({}));
+	live = "auto";
+	check("0.2.x: auto follows the system locale from describe()", section?.text({}).includes("日本語") === true, section?.text({}));
+}
 
 // --- 2. system-locale resolution -------------------------------------------
 const sectionText = () => sectionTextThunk({});
@@ -192,6 +254,13 @@ const scope = settings.register(THINKING_NAMESPACE, Config);
 check("namespace scope carries the stored value", currentLanguage(scope) === "ja");
 check("bare settings service carries the stored value", currentLanguage(settings) === "ja");
 check("no handle -> the default", currentLanguage(undefined) === THINKING_LANGUAGE_DEFAULT);
+// A plugin's own resolved config (DSH 0.2.x) is a plain section, and a volatile
+// field arrives as a live reference rather than as a value.
+check("an own config section is read directly", currentLanguage({ [THINKING_LANGUAGE_FIELD]: "de" }) === "de");
+check("a live volatile field reference is unwrapped", currentLanguage({ [THINKING_LANGUAGE_FIELD]: { get: () => "ru" } }) === "ru");
+check("a refusing field reference reads as the default", currentLanguage({ [THINKING_LANGUAGE_FIELD]: { get: () => { throw new Error("disposed"); } } }) === THINKING_LANGUAGE_DEFAULT);
+check("the system locale comes from a describe() projection", resolveLanguage({ [THINKING_LANGUAGE_FIELD]: "auto" }, { describe: () => [{ ns: "locale", value: { preference: "ja" } }] }) === "ja");
+check("a malformed describe() projection falls back", resolveLanguage({ [THINKING_LANGUAGE_FIELD]: "auto" }, { describe: () => "nope" }) === FALLBACK_THINKING_LANGUAGE);
 check("scope and service resolve identically", resolveLanguage(scope, settings) === resolveLanguage(settings, settings));
 document[THINKING_NAMESPACE] = { language: "bogus" };
 check("an unknown stored id is passed through verbatim", currentLanguage(settings) === "bogus");
