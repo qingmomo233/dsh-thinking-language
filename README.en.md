@@ -111,7 +111,7 @@ The plugin degrades instead of failing when a service or dependency is absent:
 | Situation | Behaviour |
 | --- | --- |
 | Harness without `systemPrompt` | the settings namespace keeps working |
-| Harness without this settings channel (`register()` refused / no volatile field declared) | one warning, the prompt surfaces keep working |
+| Harness without this settings channel (no `settings` service / registration refused) | one warning, the prompt surfaces keep working |
 | Harness without a settings transport (`configForms` / `settingsScope`) | the page is skipped and reported once after boot |
 | Harness without the `locale` service | the page uses its built-in copy instead of crashing |
 | Harness without the platform UI primitives module | the page falls back to a native select and still shows |

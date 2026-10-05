@@ -32,7 +32,7 @@ export declare const FALLBACK_THINKING_LANGUAGE: 'en';
 export declare const THINKING_LANGUAGES: ThinkingLanguage[];
 /** The catalog ids, in catalog order. */
 export declare const THINKING_LANGUAGE_IDS: string[];
-/** Durable settings schema (default `auto`; every enum value carries a label; the field is volatile on DSH 0.2.x). */
+/** Durable settings schema (default `auto`; every enum value carries a label; the field is volatile on DSH 0.2.x, marked and referenced by this plugin so an older schemastery works too). */
 export declare const Config: import('@deepseek-ai/schemastery').SchemasteryObject<{
     language: string | VolatileField<string>;
 }>;
@@ -49,7 +49,9 @@ export interface SettingsReader {
 /**
  * A live reference to one volatile config field. DSH 0.2.x wraps a volatile
  * field in a frozen `{ get() }` handle whose owning runtime swaps the value in
- * place, so the reference itself is stable and always reads current.
+ * place, so the reference itself is stable and always reads current. The
+ * protocol is keyed by `Symbol.for('cosmokit.volatile.write')`, which is why a
+ * reference built by this plugin is understood by the harness's own cosmokit.
  */
 export interface VolatileField<T = unknown> {
     get(): T;

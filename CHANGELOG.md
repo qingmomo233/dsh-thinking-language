@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.5.1
+
+### Fixed
+
+- **The settings page really appears on every install now.** DSH 0.2.x serves a
+  settings namespace only when the plugin's exported `Config` declares a
+  volatile field (`volatileForm()`), and applies a write in place only when the
+  running config holds a
+  [cosmokit](https://www.npmjs.com/package/@deepseek-ai/cosmokit) reference
+  (`volatileEntries()` / `updateVolatile()`). Both used to depend on the
+  installed schemastery having the `.volatile()` decorator (3.18.4), so a
+  profile whose lockfile had pinned an older 3.18.x got neither: the namespace
+  was never served, `settings/describe` never listed it, and the page stayed
+  invisible with no error anywhere. The field is now marked volatile directly
+  and resolved into a reference built on cosmokit's shared `Symbol.for`
+  protocol, so any 3.18.x schemastery works; a schemastery that does have the
+  decorator keeps its own reference, which passes through untouched. The
+  dependency range stays `^3.18.1` on purpose — nothing to fetch, nothing to
+  fail.
+- Covered by two new smoke-test checks plus a decorator-less schema scenario
+  (the decorator is hidden for one import, reproducing the old install), and
+  verified against the actual 3.18.2 copy that a stale profile lockfile had
+  installed: `volatileForm(Config)` is served, `isVolatilePath()` allows the
+  field, `plainConfig()` unwraps it for the UI, and the Loader's in-place
+  update reaches the prompt surfaces.
+
 ## 1.5.0
 
 ### Changed

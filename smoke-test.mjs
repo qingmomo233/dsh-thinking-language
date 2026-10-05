@@ -609,6 +609,46 @@ check(
 	described.slice(0, 3).map((node) => node.meta?.description).join(" | ")
 );
 
+// --- 6b. the volatile contract the harness reads ----------------------------
+// DSH 0.2.x serves a settings namespace only when `volatileForm()` finds a
+// volatile field, and applies a write in place only when the running config
+// holds a reference built on cosmokit's shared `Symbol.for` protocol: the
+// Loader compares references with `deepEqual(…, true)` and commits changed
+// values through `updateVolatile()` instead of remounting the plugin.
+const volatileWrite = Symbol.for("cosmokit.volatile.write");
+check("schema marks the language field volatile", Config.dict[THINKING_LANGUAGE_FIELD].meta.volatile === true);
+check("schema keeps the schemastery vendor the Loader diffs by", Config["~standard"].vendor === "schemastery");
+const resolvedConfig = Config["~standard"].validate({ [THINKING_LANGUAGE_FIELD]: "fr" }).value;
+check(
+	"resolving the schema yields a live reference",
+	typeof resolvedConfig[THINKING_LANGUAGE_FIELD]?.get === "function" && resolvedConfig[THINKING_LANGUAGE_FIELD].get() === "fr"
+);
+check("the reference speaks cosmokit's protocol", volatileWrite in resolvedConfig[THINKING_LANGUAGE_FIELD]);
+resolvedConfig[THINKING_LANGUAGE_FIELD][volatileWrite]("ja");
+check("a committed write reaches the read path", currentLanguage(resolvedConfig) === "ja");
+// A profile whose lockfile pinned a schemastery older than 3.18.4 has no
+// `.volatile()` decorator, so the plugin must set the marker and build the
+// reference itself; hiding the decorator for one import reproduces that.
+const schemaPrototype = Object.getPrototypeOf(Config);
+const volatileDecorator = schemaPrototype.volatile;
+const decoratorDescriptor = Object.getOwnPropertyDescriptor(schemaPrototype, "volatile");
+check("the installed schemastery keeps the decorator replaceable", typeof volatileDecorator === "function" && decoratorDescriptor?.configurable === true);
+delete schemaPrototype.volatile;
+let decoratorless;
+try {
+	decoratorless = await import("./lib/index.js?without-volatile-decorator");
+} finally {
+	schemaPrototype.volatile = volatileDecorator;
+}
+const decoratorlessField = decoratorless.Config.dict[THINKING_LANGUAGE_FIELD];
+check("a schemastery without the decorator still marks the field volatile", decoratorlessField.meta.volatile === true && decoratorlessField.meta.default === THINKING_LANGUAGE_DEFAULT);
+const decoratorlessValue = decoratorless.Config["~standard"].validate({ [THINKING_LANGUAGE_FIELD]: "de" }).value;
+check(
+	"a schemastery without the decorator still resolves a live reference",
+	typeof decoratorlessValue[THINKING_LANGUAGE_FIELD]?.get === "function" && decoratorlessValue[THINKING_LANGUAGE_FIELD].get() === "de"
+);
+check("the decorator is restored for the rest of the run", typeof schemaPrototype.volatile === "function");
+
 // --- 7. user-visible copy is frozen ----------------------------------------
 // Everything the user reads on the settings row, in every shipped dictionary.
 // These literals changed once by accident during a refactor; this check exists
