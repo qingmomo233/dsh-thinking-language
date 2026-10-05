@@ -14,8 +14,9 @@ and Japanese, or "auto" to follow the system locale.
 ## What it does
 
 - **A settings page of its own** — Settings → **Thinking language** is a page
-  with its own heading, hint and one selector pill (dropdown menu), the same
-  pill the built-in Language / Permission rows use.
+  with a single row: the title and its hint on the left, one selector pill
+  (dropdown menu) on the right — the same shape as the built-in Language /
+  Permission rows.
 - **Prompt injection** — when a language is selected the plugin injects a
   system-prompt instruction telling the model to write its internal reasoning
   in that language. With *Follow the system (auto)* the instruction uses the

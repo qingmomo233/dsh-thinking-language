@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+### Changed
+
+- **The page is one row.** The title and its hint now sit on the left of the
+  selector instead of stacked above it, so 设置 → 思考语言 reads exactly like the
+  built-in Language / Permission rows (`.dshtl_row` / `.dshtl_rowText` /
+  `.dshtl_title` / `.dshtl_desc` replace the page-wide heading, intro and field
+  rules). Pure client change: refresh the window to pick up the new bundle.
+
 ## 1.5.1
 
 ### Fixed

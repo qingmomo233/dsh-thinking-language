@@ -546,26 +546,30 @@ if (clientExports !== undefined) {
 		JSON.stringify(syncs[0]?.[1])
 	);
 
-	// The page draws its own heading, its own explanation and one selector: the
-	// shell renders a `settings.section` cell with no label of its own, so a bare
-	// container would leave a blank page behind the nav entry.
+	// The page is a single row, the same shape as the built-in Language /
+	// Permission rows: the title and its hint on the left, the selector on the
+	// right. The shell renders a `settings.section` cell with no label of its
+	// own, so a bare container would leave a blank page behind the nav entry.
 	const page = row?.component({
 		t: (key) => key,
 		setLanguage: () => {},
 		useStore: (select) => select({ language: "ja", catalog: [{ id: "auto" }, { id: "ja", label: "日本語" }] })
 	});
-	const [heading, intro, field] = page?.children ?? [];
+	const rowBox = page?.children?.[0];
+	const [text, picker] = rowBox?.children ?? [];
+	const [title, desc] = text?.children ?? [];
 	check(
-		"client page draws a heading, an intro and one selector",
+		"client page puts the title, its hint and the selector on one row",
 		page?.props?.className === "dshtl_page" &&
-			heading?.props?.className === "dshtl_heading" &&
-			heading?.children?.[0] === "title" &&
-			intro?.props?.className === "dshtl_intro" &&
-			intro?.children?.[0] === "hint" &&
-			field?.props?.className === "dshtl_field",
-		JSON.stringify(page?.children?.map((child) => child?.props?.className))
+			rowBox?.props?.className === "dshtl_row" &&
+			text?.props?.className === "dshtl_rowText" &&
+			title?.props?.className === "dshtl_title" &&
+			title?.children?.[0] === "title" &&
+			desc?.props?.className === "dshtl_desc" &&
+			desc?.children?.[0] === "hint" &&
+			typeof picker?.type === "function",
+		JSON.stringify([rowBox?.props?.className, text?.props?.className, title?.props?.className, desc?.props?.className])
 	);
-	const picker = field?.children?.[0];
 	const menu = typeof picker?.type === "function" ? picker.type(picker.props) : undefined;
 	const anchor = menu?.props?.anchor;
 	check(
@@ -684,7 +688,7 @@ const FROZEN_COPY = [
 ];
 const missingCopy = FROZEN_COPY.filter((literal) => !clientSource.includes(literal));
 check("settings page copy is byte-for-byte unchanged", missingCopy.length === 0, missingCopy.join(" | "));
-const frozenClasses = ["dshtl_page", "dshtl_heading", "dshtl_intro", "dshtl_field", "dshtl_selector", "dshtl_chevron"];
+const frozenClasses = ["dshtl_page", "dshtl_row", "dshtl_rowText", "dshtl_title", "dshtl_desc", "dshtl_selector", "dshtl_chevron"];
 const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
 check("settings page CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
 
