@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.5.0
+
+### Changed
+
+- **The picker is a settings page of its own.** Settings → **思考语言 / Thinking
+  language** (a `settings.section` entry, order 25) replaces the row that used
+  to sit under Settings → General. The shell renders a section cell with no
+  label of its own, so the page draws its own heading, hint and selector — the
+  same pill the built-in Language / Permission rows use. The nav label is bound
+  through the entry's `locale` face (the existing `title` key), and the entry
+  keeps the same store, `inject` write face and namespace, so nothing about the
+  read/write path changed.
+- The plugin's general-section footprint is gone: no `settings.general.item`
+  registration, no row markup, and the CSS block is renamed
+  `dsh-thinking-language/page.css` (`dshtl_page` / `dshtl_heading` /
+  `dshtl_intro` / `dshtl_field` / `dshtl_selector` / `dshtl_chevron`).
+
+  Both suites cover the new surface: the section registration and its
+  dictionary-bound label, the page's own heading/intro/selector tree, the
+  active-language label inside the pill, and the deferred "no settings
+  transport" warning.
+
 ## 1.4.3
 
 ### Fixed

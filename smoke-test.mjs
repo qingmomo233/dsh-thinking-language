@@ -440,7 +440,8 @@ if (clientExports !== undefined) {
 		register: (ns, dicts) => {
 			dictionaries.push({ ns, locales: Object.keys(dicts) });
 			return () => {};
-		}
+		},
+		bind: (ns) => (key) => `${ns}.${key}`
 	};
 
 	// (1) Neither transport: dictionaries only, plus one diagnostic warning.
@@ -466,7 +467,7 @@ if (clientExports !== undefined) {
 	} finally {
 		globalThis.setTimeout = realSetTimeout;
 	}
-	check("client skips the row when no settings transport is present", slotRegistrations.length === 0);
+	check("client skips the settings page when no settings transport is present", slotRegistrations.length === 0);
 	check("client defers its availability check", timers.length === 1);
 	for (const fire of timers) fire();
 	check(
@@ -476,7 +477,7 @@ if (clientExports !== undefined) {
 	);
 
 	// (2) dsh 0.2.x: the transport is `configForms`, one form per Host-served
-	// namespace, and the row exists only while the Host serves that namespace.
+	// namespace, and the page exists only while the Host serves that namespace.
 	// A hand-built schema (auto + de) proves the catalog came from the describe
 	// MIRROR, which the transport exposes as a store rather than as a document.
 	const tinySchema = {
@@ -521,13 +522,18 @@ if (clientExports !== undefined) {
 			return register(namespaces);
 		}
 	};
-	// Both transports are offered: a real harness serves one, and the row must
+	// Both transports are offered: a real harness serves one, and the page must
 	// mount exactly once — through the current generation.
 	clientExports.apply(makeClientCtx({ slots, locale, configForms, settingsScope, logger: { warn: () => {} } }));
-	check("client registers the row through configForms", slotRegistrations.length === 1 && whileServedCalls === 1);
+	check("client registers the page through configForms", slotRegistrations.length === 1 && whileServedCalls === 1);
 	check("client prefers configForms over the legacy settings scope", scopeListener === undefined);
 	const row = slotRegistrations[0];
-	check("client row targets the General item slot", row?.options.name === "settings.general.item" && row?.options.id === "thinking-language");
+	check("client page targets its own settings section", row?.options.name === "settings.section" && row?.options.id === "thinking-language");
+	check(
+		"client labels the nav entry through the locale face",
+		typeof row?.options.label === "function" && row.options.label() === "settings.thinking-language.title",
+		typeof row?.options.label === "function" ? row.options.label() : "(no label)"
+	);
 	check("client registers its dictionaries", dictionaries.length === 1 && dictionaries[0].locales.includes("zh") && dictionaries[0].locales.includes("en"));
 	const syncs = [];
 	const boundActions = row?.options.inject({ sync: (...args) => syncs.push(args) });
@@ -538,6 +544,34 @@ if (clientExports !== undefined) {
 		"client reads the catalog through the describe mirror",
 		JSON.stringify(syncs[0]?.[1]) === JSON.stringify([{ id: "auto" }, { id: "de", label: "Deutsch" }]),
 		JSON.stringify(syncs[0]?.[1])
+	);
+
+	// The page draws its own heading, its own explanation and one selector: the
+	// shell renders a `settings.section` cell with no label of its own, so a bare
+	// container would leave a blank page behind the nav entry.
+	const page = row?.component({
+		t: (key) => key,
+		setLanguage: () => {},
+		useStore: (select) => select({ language: "ja", catalog: [{ id: "auto" }, { id: "ja", label: "日本語" }] })
+	});
+	const [heading, intro, field] = page?.children ?? [];
+	check(
+		"client page draws a heading, an intro and one selector",
+		page?.props?.className === "dshtl_page" &&
+			heading?.props?.className === "dshtl_heading" &&
+			heading?.children?.[0] === "title" &&
+			intro?.props?.className === "dshtl_intro" &&
+			intro?.children?.[0] === "hint" &&
+			field?.props?.className === "dshtl_field",
+		JSON.stringify(page?.children?.map((child) => child?.props?.className))
+	);
+	const picker = field?.children?.[0];
+	const menu = typeof picker?.type === "function" ? picker.type(picker.props) : undefined;
+	const anchor = menu?.props?.anchor;
+	check(
+		"client page selector names the active language",
+		menu?.props?.selectedId === "ja" && anchor?.props?.className === "dshtl_selector" && anchor?.children?.[0] === "日本語",
+		JSON.stringify(anchor?.children?.[0])
 	);
 
 	// (3) dsh 0.1.x: the same form face, published as `settingsScope`.
@@ -554,7 +588,7 @@ if (clientExports !== undefined) {
 	delete globalThis.window;
 	const legacyExports = registrationsSeen[legacyBefore].factory(requireStub);
 	legacyExports.apply(makeClientCtx({ slots, locale, settingsScope, logger: { warn: () => {} } }));
-	check("client registers the row through the legacy settings scope", slotRegistrations.length === 1 && typeof scopeListener === "function");
+	check("client registers the page through the legacy settings scope", slotRegistrations.length === 1 && typeof scopeListener === "function");
 	check("client keeps the legacy write path", typeof slotRegistrations[0]?.options.inject({ sync: () => {} })?.setLanguage === "function");
 	check("client registers its dictionaries on the legacy generation too", dictionaries.length === 2);
 }
@@ -609,14 +643,14 @@ const FROZEN_COPY = [
 	'"lang.auto": "Seguir o sistema (automático)"'
 ];
 const missingCopy = FROZEN_COPY.filter((literal) => !clientSource.includes(literal));
-check("row copy is byte-for-byte unchanged", missingCopy.length === 0, missingCopy.join(" | "));
-const frozenClasses = ["dshtl_row", "dshtl_rowText", "dshtl_title", "dshtl_desc", "dshtl_selector", "dshtl_chevron"];
+check("settings page copy is byte-for-byte unchanged", missingCopy.length === 0, missingCopy.join(" | "));
+const frozenClasses = ["dshtl_page", "dshtl_heading", "dshtl_intro", "dshtl_field", "dshtl_selector", "dshtl_chevron"];
 const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
-check("row CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
+check("settings page CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
 
-// The one icon the row draws is named per generation (0.1.x sizes, 0.2.x
+// The one icon the page draws is named per generation (0.1.x sizes, 0.2.x
 // weights), and an unguarded miss renders `undefined` as a component: React
-// throws, the slot renderer drops the row, and the setting vanishes from a
+// throws, the slot renderer drops the page, and the setting vanishes from a
 // healthy Settings panel. Every primitives access must therefore be one of the
 // names the bundle tolerates.
 const primitiveRefs = [...new Set([...clientSource.matchAll(/primitives\.([A-Za-z0-9_]+)/g)].map((match) => match[1]))];

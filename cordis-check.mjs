@@ -202,7 +202,8 @@ clientCtx.provide("locale", {
 	register: (ns, dicts) => {
 		dictionaries.push({ ns, locales: Object.keys(dicts) });
 		return () => {};
-	}
+	},
+	bind: (ns) => (key) => `${ns}.${key}`
 });
 await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -212,8 +213,19 @@ check(
 	dictionaries[0] !== undefined && ["zh", "en", "ru", "fr", "de", "es", "ar", "pt", "ja"].every((id) => dictionaries[0].locales.includes(id)),
 	JSON.stringify(dictionaries[0]?.locales ?? [])
 );
-check("the row registers once locale is up", clientSlots.registrations.length === 1, `rows=${String(clientSlots.registrations.length)}`);
-check("the row declares its dictionary namespace", clientSlots.registrations[0]?.options.locale === "settings.thinking-language");
+check("the settings page registers once locale is up", clientSlots.registrations.length === 1, `pages=${String(clientSlots.registrations.length)}`);
+check(
+	"the settings page occupies its own section",
+	clientSlots.registrations[0]?.options.name === "settings.section" && clientSlots.registrations[0]?.options.id === THINKING_NAMESPACE,
+	JSON.stringify(clientSlots.registrations[0]?.options)
+);
+check("the settings page declares its dictionary namespace", clientSlots.registrations[0]?.options.locale === "settings.thinking-language");
+check(
+	"the section nav label comes from the dictionary",
+	typeof clientSlots.registrations[0]?.options.label === "function" &&
+		clientSlots.registrations[0].options.label() === "settings.thinking-language.title",
+	typeof clientSlots.registrations[0]?.options.label === "function" ? clientSlots.registrations[0].options.label() : "(no label)"
+);
 await clientPlugin.dispose();
 
 if (failures.length === 0) console.log("\nALL CORDIS CHECKS PASSED");

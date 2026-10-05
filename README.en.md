@@ -13,9 +13,9 @@ and Japanese, or "auto" to follow the system locale.
 
 ## What it does
 
-- **Settings row** — Settings → General shows a **Thinking language** picker
-  with the same Setting-Cell layout as the built-in Language / Permission rows:
-  title and hint on the left, the selector pill (dropdown menu) on the right.
+- **A settings page of its own** — Settings → **Thinking language** is a page
+  with its own heading, hint and one selector pill (dropdown menu), the same
+  pill the built-in Language / Permission rows use.
 - **Prompt injection** — when a language is selected the plugin injects a
   system-prompt instruction telling the model to write its internal reasoning
   in that language. With *Follow the system (auto)* the instruction uses the
@@ -98,9 +98,9 @@ node scripts/patch-apiproxy.mjs --write  # apply (writes a .dsh-thinking-languag
 
 ## Usage
 
-1. Open **Settings** (gear icon) → **General**.
-2. Pick a language in the **Thinking language** row (or choose *Follow the
-   system (auto)* to use the system UI locale).
+1. Open **Settings** (gear icon) → **Thinking language** in the left nav.
+2. Pick a language on that page (or choose *Follow the system (auto)* to use
+   the system UI locale).
 3. Start a **new session** — its thinking process is written in the selected
    language.
 
@@ -112,9 +112,9 @@ The plugin degrades instead of failing when a service or dependency is absent:
 | --- | --- |
 | Harness without `systemPrompt` | the settings namespace keeps working |
 | Harness without this settings channel (`register()` refused / no volatile field declared) | one warning, the prompt surfaces keep working |
-| Harness without a settings transport (`configForms` / `settingsScope`) | the row is skipped and reported once after boot |
-| Harness without the `locale` service | the row uses its built-in copy instead of crashing |
-| Harness without the platform UI primitives module | the row falls back to a native select and still shows |
+| Harness without a settings transport (`configForms` / `settingsScope`) | the page is skipped and reported once after boot |
+| Harness without the `locale` service | the page uses its built-in copy instead of crashing |
+| Harness without the platform UI primitives module | the page falls back to a native select and still shows |
 | `describe()` unavailable or a different schema shape | the picker falls back to the bundled catalog |
 | Hand-edited/corrupt settings section | treated as `auto`; nothing is thrown and user data is never rewritten |
 | Unrecognised system language tag | falls back to English (matching the shell locale plugin) |
@@ -130,7 +130,7 @@ fallback copy, and `smoke-test.mjs` fails when the two drift apart.
 | --- | --- | --- |
 | Pure core | `lib/languages.js` | catalog, system-locale tag matching, instruction/reminder copy (no cordis, no browser globals — directly unit-testable) |
 | Host entry | `lib/index.js` | registers the `thinking-language` settings namespace and the `app:thinking-language` system-prompt section (order 85) |
-| Browser bundle | `lib/client.js` | registers the picker row into the `settings.general.item` slot and reads/writes the same namespace through the client settings scope |
+| Browser bundle | `lib/client.js` | registers a dedicated **Thinking language** page into the `settings.section` slot and reads/writes the same namespace through the client settings scope |
 | Bundle patch | `cordis.patch.yml` | inserts the plugin row into the composed profile tree |
 | Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths, frozen UI copy |
 

@@ -18,7 +18,7 @@ export interface ThinkingLanguageOption {
  */
 /** The "follow the system locale" value shared with the host schema. */
 export declare const THINKING_LANGUAGE_DEFAULT: 'auto';
-/** Dictionary namespace owned by the settings row. */
+/** Dictionary namespace owned by the settings page. */
 export declare const SETTINGS_NS: 'settings.thinking-language';
 /** Settings namespace owned by the host entry. */
 export declare const THINKING_NS: 'thinking-language';
@@ -41,5 +41,9 @@ export declare function readCatalog(described: unknown, ns: string): ThinkingLan
  * loses individual features instead of the whole bundle.
  */
 export declare const inject: ['slots'];
-/** Client plugin body: register the picker row into Settings → General. */
+/**
+ * Client plugin body: register the **Thinking language** page into the
+ * `settings.section` slot (the nav entry's label comes from the same
+ * dictionary namespace the page body uses).
+ */
 export declare function apply(ctx: Context): void;
