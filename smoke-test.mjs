@@ -288,7 +288,7 @@ check("client bundle does not require an optional seed word eagerly", !/^\s*let 
 const requireStub = (specifier) => {
 	if (specifier === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), useState: (initial) => [initial, () => {}] };
 	if (specifier === "react/jsx-runtime") throw new Error("client bundle required react/jsx-runtime; it must build elements through the platform React or a plain description");
-	if (specifier === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutline14: "IconChevronDownOutline14" };
+	if (specifier === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutlineRegular: "IconChevronDownOutlineRegular" };
 	throw new Error(`client bundle required an unavailable module: ${specifier}`);
 };
 const registrationsSeen = [];
@@ -442,8 +442,8 @@ check(
 // so a compatibility change can never alter the UI again.
 const FROZEN_COPY = [
 	'"title": "思考语言"',
-	'"hint": "选择模型思考过程（推理/链式思考）使用的语言，新会话生效。"',
-	'"lang.auto": "跟随系统（自动）"',
+	'"hint": "选择模型思考过程使用的语言，新会话生效。"',
+	'"lang.auto": "跟随系统"',
 	'"title": "Thinking language"',
 	'"hint": "Language used for the model\'s reasoning/thinking process. Applies to new sessions."',
 	'"lang.auto": "Follow the system (auto)"',
@@ -474,6 +474,23 @@ check("row copy is byte-for-byte unchanged", missingCopy.length === 0, missingCo
 const frozenClasses = ["dshtl_row", "dshtl_rowText", "dshtl_title", "dshtl_desc", "dshtl_selector", "dshtl_chevron"];
 const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
 check("row CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
+
+// The one icon the row draws is named per generation (0.1.x sizes, 0.2.x
+// weights), and an unguarded miss renders `undefined` as a component: React
+// throws, the slot renderer drops the row, and the setting vanishes from a
+// healthy Settings panel. Every primitives access must therefore be one of the
+// names the bundle tolerates.
+const primitiveRefs = [...new Set([...clientSource.matchAll(/primitives\.([A-Za-z0-9_]+)/g)].map((match) => match[1]))];
+const toleratedPrimitives = ["Menu", "IconChevronDownOutlineRegular", "IconChevronDownOutline", "IconChevronDownOutline14"];
+check(
+	"client only touches primitives through generation-tolerant lookups",
+	primitiveRefs.length > 0 && primitiveRefs.every((name) => toleratedPrimitives.includes(name)),
+	primitiveRefs.join(",")
+);
+check(
+	"client resolves the chevron from the newer icon name first",
+	clientSource.includes("primitives.IconChevronDownOutlineRegular ?? primitives.IconChevronDownOutline ?? primitives.IconChevronDownOutline14")
+);
 
 // --- 8. package manifest ---------------------------------------------------
 // The harness reads these fields at boot: a missing bundle path or a

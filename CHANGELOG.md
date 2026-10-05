@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.1
+
+### Fixed
+
+- **The settings row disappeared on dsh 0.2.x — the real cause of "installed but
+  not showing".** The row asked the primitives package for
+  `IconChevronDownOutline14`. dsh 0.1.x named its icons by size, dsh 0.2.x names
+  them by weight, so on 0.2.x that lookup was `undefined` and the row rendered
+  `undefined` as a component. React then throws *while rendering* ("Element type
+  is invalid… expected a string or a class/function but got: undefined"), the
+  slot renderer drops the row, and the setting vanishes from an otherwise
+  perfectly healthy Settings panel — no plugin error, no failed fiber, nothing
+  in the UI to point at it.
+
+  The chevron is now resolved through the names the shipped packages actually
+  use, newest first (`IconChevronDownOutlineRegular` → `IconChevronDownOutline`
+  → `IconChevronDownOutline14`), and an absent icon degrades to no icon instead
+  of a failed row. `smoke-test.mjs` now fails when the bundle names a primitives
+  export outside that tolerated set, so the next rename cannot repeat this.
+
 ## 1.4.0
 
 ### Removed

@@ -151,7 +151,7 @@ await barePlugin.dispose();
 // service, which is what `ctx.inject` guarantees.
 const clientStub = (spec) => {
 	if (spec === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), useState: (value) => [value, () => {}] };
-	if (spec === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutline14: "Icon" };
+	if (spec === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutlineRegular: "Icon" };
 	throw new Error(`client bundle required an unavailable module: ${spec}`);
 };
 const captured = [];
