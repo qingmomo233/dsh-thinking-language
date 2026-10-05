@@ -68,14 +68,63 @@ dsh plugin --profile web add <plugin-dir>
 ```
 
 The command installs the package into the profile and appends it to the
-profile's bundle layer (because the package declares `dsh.bundle.patch`), then
-**restart the GUI** (`dsh web` / the desktop app) — bundle layers and the
-client-module scan are read at boot, so a page refresh alone is not enough.
+profile's bundle layer (because the package declares `dsh.bundle.patch`).
 
-> The package was renamed from `dsh-plugin-thinking-language` to
-> `dsh-thinking-language` in v1.1. If you installed the old name, remove it
-> first (`dsh plugin --profile web remove dsh-plugin-thinking-language`) so the
-> profile does not carry two rows for the same plugin.
+Then **restart the Harness** (fully quit and relaunch the desktop app, or
+restart the `dsh web` process). The client module graph is written into
+`index.html` when the page is rendered, so a page refresh — or a live bundle-layer
+reload — does not deliver a newly added plugin's client bundle to an already-open
+page.
+
+### Two install targets, two homes
+
+The desktop app and the command-line launcher do not share a Harness home by
+default:
+
+| How you run it | Harness home | Profile |
+| --- | --- | --- |
+| Official desktop app (`DeepSeek Harness.exe`) | the app's own `dsh-home` (older builds: `%APPDATA%\Deepseek-Harness-Desktop\dsh-home`) | `web` / `desktop` |
+| `dsh web` / `dsh` | `%USERPROFILE%\.dsh` | `web` (or `desktop`) |
+
+Check `DSH_HOME` and `DSH_PROFILE` to see which one is live. The desktop app
+**owns** its home: `dsh --profile …` against it is refused with
+`profile "desktop" is managed exclusively by the Electron application`, so use
+the app's own plugin installer (market / plugins page, which accepts only a
+`github:owner/repo[#sha]` spec).
+
+### If it installs but does not show
+
+1. **Stale old package name.** A leftover `dsh-plugin-thinking-language` entry in
+   `dependencies` or `dsh.profile.bundles` makes the Harness skip the bundle and
+   log:
+
+   ```
+   dsh: skipping profile bundle "dsh-plugin-thinking-language": Error: dsh: cannot resolve profile bundle …
+   ```
+
+   Remove it, then install the current name:
+
+   ```bash
+   dsh plugin --profile web remove dsh-plugin-thinking-language
+   dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
+   ```
+
+2. **The compatibility gate.** The Harness checks `peerDependencies` against its
+   own dsh version and skips the whole bundle on a mismatch:
+
+   ```
+   dsh: skipping profile bundle "…": Error: Plugin … is incompatible with dsh 0.2.0-rc.2: peerDependencies {…}
+   ```
+
+   Note that `^0.1.0-rc.6` does **not** match 0.2.x. This plugin declares
+   `dsh.compatibility` and a bounded peer range (`>=0.1.0-rc.5 <0.3.0-0`) to
+   avoid exactly that mistake.
+
+3. **Broken `node_modules` links in the config directory.** The desktop app
+   junctions `@deepseek-ai/*` into `<DSH_HOME>\profiles\node_modules\@deepseek-ai\`.
+   If the app install directory was renamed or moved (e.g. `D:\DSH Desktop` →
+   `D:\DSHDesktop`) those links all dangle. Inspect `Target` with `Get-Item` and
+   confirm each target still exists with `Test-Path`.
 
 ### About the settings-exposure patch (very old harnesses only)
 

@@ -41,9 +41,19 @@
 
 ## 安装
 
-在命令行执行（若使用其他配置文件，请把 `web` 换成对应名称，如 `desktop`）：
+插件必须装进**你实际在用的那个 Harness 配置目录**。桌面版和命令行版默认不是同一个：
 
-**从 GitHub 安装（推荐）：**
+| 用法 | Harness 主目录 | 配置名 |
+| --- | --- | --- |
+| 官方桌面版（`DeepSeek Harness.exe`） | `%APPDATA%\Deepseek-Harness-Desktop\dsh-home`（旧版）或桌面版自己的 `dsh-home` | `web` / `desktop` |
+| 命令行 `dsh web` / `dsh` | `%USERPROFILE%\.dsh` | `web`（或 `desktop`） |
+
+用 `dsh` 启动的实例，看环境变量即可确认：`DSH_HOME` 与 `DSH_PROFILE`。
+**桌面版主目录由应用自己管理**，对它执行 `dsh --profile …` 会被拒绝
+（`profile "desktop" is managed exclusively by the Electron application`），
+所以桌面版请用应用内的插件安装（市场 / 插件页，只接受 `github:owner/repo[#sha]`）。
+
+**命令行安装（从 GitHub，推荐）：**
 
 ```bash
 dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
@@ -56,12 +66,43 @@ dsh plugin --profile web add <插件目录>
 ```
 
 该命令会把插件安装到配置目录，并因其声明了 `dsh.bundle.patch` 而自动追加到
-配置文件的 bundle 层。安装完成后**重启 GUI**（`dsh web` 或桌面应用）——
-bundle 层与客户端模块扫描都在启动时读取，仅刷新页面不够。
+配置文件的 bundle 层。
 
-> 包名从 `dsh-plugin-thinking-language` 更名为 `dsh-thinking-language`（v1.1）。
-> 如果你安装过旧名，先执行 `dsh plugin --profile web remove dsh-plugin-thinking-language`，
-> 再按上面的命令安装，否则配置文件里会出现两个插件行。
+安装后**必须重启 Harness**（桌面版请完全退出后重新打开，`dsh web` 请重启进程）。
+客户端模块图是在页面渲染时写进 `index.html` 的：只刷新页面、或让 bundle 层热更新，
+都不会把新插件的客户端 bundle 送进已经打开的页面。
+
+### 装不上 / 不显示时先查这三处
+
+1. **旧包名残留。** v1.1 起包名从 `dsh-plugin-thinking-language` 改为
+   `dsh-thinking-language`。旧名如果还留在 `package.json` 的
+   `dependencies` / `dsh.profile.bundles` 里，Harness 会直接跳过它并在日志里写：
+
+   ```
+   dsh: skipping profile bundle "dsh-plugin-thinking-language": Error: dsh: cannot resolve profile bundle …
+   ```
+
+   先删干净再装：
+
+   ```bash
+   dsh plugin --profile web remove dsh-plugin-thinking-language
+   dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
+   ```
+
+2. **兼容性闸门。** Harness 会核对 `package.json` 的 `peerDependencies` 与
+   自身的 dsh 版本，对不上就整包跳过：
+
+   ```
+   dsh: skipping profile bundle "…": Error: Plugin … is incompatible with dsh 0.2.0-rc.2: peerDependencies {…}
+   ```
+
+   注意 `^0.1.0-rc.6` 这类写法**不匹配 0.2.x**。本插件声明 `dsh.compatibility`
+   与有界 peer 范围（`>=0.1.0-rc.5 <0.3.0-0`）就是为了避免这种误判。
+
+3. **配置目录的 `node_modules` 断链。** 桌面版会把 `@deepseek-ai/*` 以 junction
+   方式链进 `<DSH_HOME>\profiles\node_modules\@deepseek-ai\`。如果应用安装目录
+   被改名或移动过（例如 `D:\DSH Desktop` → `D:\DSHDesktop`），这些链接会全部
+   悬空。用 `Get-Item` 看 `Target`，`Test-Path` 验证目标是否还在。
 
 ### 关于设置暴露补丁（仅极旧版本需要）
 

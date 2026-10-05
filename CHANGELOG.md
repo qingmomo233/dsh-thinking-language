@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.3.0
+
+Desktop-app (dsh 0.2.0-rc.2) alignment. No settings migration: the
+`thinking-language` namespace, its `language` field, the plugin name and the
+`/thinking-language` command are unchanged.
+
+### Fixed
+
+- **The settings row could be dropped silently.** The browser half aborted its
+  whole `apply` — logging "the platform UI primitives module is unavailable;
+  the settings row is disabled" — whenever `@deepseek-ai/dsh-client-ui-primitives`
+  was absent from the harness's static module table. A missing row is
+  indistinguishable from "the plugin is not installed". The row is now always
+  registered: when the primitives module (or just its `Menu`) is unavailable it
+  falls back to a native `<select>` built from the React seat the slot renderer
+  already owns, so the preference stays reachable on every harness generation.
+
+### Changed
+
+- `dsh.client` now follows the shape the shipped client plugins actually use:
+  `inject` names the **package rows** whose services the row waits for
+  (`@deepseek-ai/dsh-client-locale` for `locale`,
+  `@deepseek-ai/dsh-client-ui-settings` for `settingsScope`,
+  `@deepseek-ai/dsh-client-ui-settings-general` for the
+  `settings.general.item` slot) so the module graph orders them before this
+  row.
+- Dropped the non-standard `dsh.client.external` array (`react` and
+  `@deepseek-ai/dsh-client-ui-primitives` are platform **seed words**, not
+  graph rows, so the array could never add an edge) and the `immediately: true`
+  bootstrap-tier flag, which is reserved for bundles that must activate before
+  the shell's own providers (this row consumes them instead).
+- Added `dsh.compatibility` (`dsh` range plus a per-release `dshReleases`
+  table) so the desktop app's and the CLI's compatibility gates can accept the
+  release instead of skipping the bundle.
+- `exports` now publishes `./cordis.patch.yml`, matching `dsh-base` and the
+  other published bundles.
+- The `@deepseek-ai/dsh-client-ui-primitives` peer range is bounded
+  (`>=0.1.0-rc.5 <0.3.0-0`) so a future 0.3.x generation is not silently
+  claimed as compatible.
+
 ## 1.2.0
 
 Compatibility-focused refactor. No settings migration is required: the
