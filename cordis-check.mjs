@@ -144,9 +144,9 @@ await barePlugin.dispose();
 //
 // Regression guard. The browser half registers its row dictionaries through the
 // `locale` service, which is NOT a bundle-level requirement (only `slots` is).
-// `slots` becomes available before `settingsScope`, so this plugin's apply can
-// run before the locale plugin is up: a one-shot `ctx.get("locale")` check
-// silently skipped the registration forever and the row rendered raw keys
+// `slots` becomes available before the settings transport, so this plugin's
+// apply can run before the locale plugin is up: a one-shot `ctx.get("locale")`
+// check silently skipped the registration forever and the row rendered raw keys
 // (`title`, `hint`, `lang.auto`). The registration must instead WAIT for the
 // service, which is what `ctx.inject` guarantees.
 const clientStub = (spec) => {
@@ -178,19 +178,23 @@ class FakeSlots extends Service {
 const dictionaries = [];
 const clientCtx = new Context();
 const clientSlots = new FakeSlots(clientCtx);
-clientCtx.provide("settingsScope", {
-	bind: () => ({
-		getSnapshot: () => ({ value: { language: "ru" }, revision: 1, writable: true }),
+// dsh 0.2.x publishes the settings transport as `configForms` — one form per
+// Host-served namespace — and the row exists only while the Host serves that
+// namespace, which is what `whileServed` reports.
+clientCtx.provide("configForms", {
+	get: () => ({
+		getSnapshot: () => ({ status: "ready", value: { language: "ru" }, revision: 1, writable: true }),
 		subscribe: () => () => {},
 		set: () => Promise.resolve(),
 		unset: () => Promise.resolve()
 	}),
-	describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
+	describe: () => ({ getSnapshot: () => ({ view: { writable: true, namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] } }) }),
+	whileServed: (namespaces, register) => register(namespaces)
 });
 const clientPlugin = await clientCtx.plugin({ name: "thinking-language", inject: clientBundle.inject, apply: clientBundle.apply });
 await clientPlugin;
 
-check("client boots with slots + settingsScope and no locale", dictionaries.length === 0);
+check("client boots with slots + configForms and no locale", dictionaries.length === 0);
 check("client waits for locale before registering the row", clientSlots.registrations.length === 0, `rows=${String(clientSlots.registrations.length)}`);
 
 // The locale service arrives only now — and must still reach the plugin.

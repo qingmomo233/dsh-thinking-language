@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.4.2
+
+### Fixed
+
+- **The settings row now appears on dsh 0.2.x.** The 1.4.1 chevron fix was real
+  but unreachable: the row was still waiting for the `settingsScope` service,
+  which dsh 0.2.x renamed to `configForms` (a scan of the shipped core finds the
+  old name in 104 files of the 0.1.x runtime and in **none** of the 0.2.0-rc.2
+  tree). A `ctx.inject` branch waiting for a service that no longer exists never
+  runs and never fails, so nothing registered, nothing was logged as an error,
+  and the setting was simply absent from an otherwise healthy Settings panel.
+
+  The plugin now installs a branch per transport generation and mounts the row
+  through whichever one the harness serves: `configForms` on 0.2.x, where the
+  form is fetched per namespace and the row is registered while
+  `whileServed([...])` reports the Host serving it; the legacy `settingsScope`
+  (form bound per namespace) before that. A harness serves exactly one
+  generation, so the mount is latched and the row can never register twice. The
+  availability warning after boot now distinguishes "no transport at all", "no
+  `locale`", and "transport present but the row never mounted".
+
+  Both suites cover the split: `smoke-test.mjs` exercises every generation with
+  a hand-built schema (proving the catalog is read through the `configForms`
+  describe *mirror*, not the fallback table), and `cordis-check.mjs` boots the
+  real container against `configForms` to keep the late-`locale` guard.
+
 ## 1.4.1
 
 ### Fixed

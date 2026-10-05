@@ -329,7 +329,11 @@ if (clientExports !== undefined) {
 	check("client falls back on an unparseable schema", wrongShape.length === expectedIds.length);
 
 	// apply() must reach the row registration on a complete harness and degrade
-	// (registering dictionaries only) when the settings scope is absent.
+	// (registering dictionaries only) when no settings transport is present.
+	// The transport is named `configForms` on dsh 0.2.x and `settingsScope`
+	// before it, so both generations are exercised: the mount is latched per
+	// module (a harness serves exactly one generation), which is why the legacy
+	// half needs its own copy of the bundle.
 	const slotRegistrations = [];
 	const makeClientCtx = (services) => {
 		const ctx = {
@@ -347,7 +351,8 @@ if (clientExports !== undefined) {
 			}
 		};
 		// cordis resolves services as plain context properties too, and the row
-		// branch reads `ctx.settingsScope` / `ctx.slots` directly.
+		// branch reads `ctx.configForms` / `ctx.settingsScope` / `ctx.slots`
+		// directly.
 		for (const [name, value] of Object.entries(services)) Object.defineProperty(ctx, name, { get: () => value });
 		return ctx;
 	};
@@ -368,30 +373,8 @@ if (clientExports !== undefined) {
 			return () => {};
 		}
 	};
-	const scopeSnapshot = { value: { language: "ru" }, revision: 3, writable: true };
-	let scopeListener;
-	const settingsScope = {
-		bind: () => ({
-			getSnapshot: () => scopeSnapshot,
-			subscribe: (listener) => {
-				scopeListener = listener;
-				return () => {};
-			},
-			set: () => Promise.resolve(),
-			unset: () => Promise.resolve()
-		}),
-		describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
-	};
-	clientExports.apply(makeClientCtx({ slots, locale, settingsScope, logger: { warn: () => {} } }));
-	check("client registers the row on a complete harness", slotRegistrations.length === 1);
-	const row = slotRegistrations[0];
-	check("client row targets the General item slot", row?.options.name === "settings.general.item" && row?.options.id === "thinking-language");
-	check("client registers its dictionaries", dictionaries.length === 1 && dictionaries[0].locales.includes("zh") && dictionaries[0].locales.includes("en"));
-	const boundActions = row?.options.inject({ sync: () => {} });
-	check("client exposes a setLanguage write path", typeof boundActions?.setLanguage === "function");
-	check("client adopts the settings snapshot", typeof scopeListener === "function");
 
-	slotRegistrations.length = 0;
+	// (1) Neither transport: dictionaries only, plus one diagnostic warning.
 	const degraded = [];
 	const realSetTimeout = globalThis.setTimeout;
 	const timers = [];
@@ -414,10 +397,97 @@ if (clientExports !== undefined) {
 	} finally {
 		globalThis.setTimeout = realSetTimeout;
 	}
-	check("client skips the row when the settings scope is absent", slotRegistrations.length === 0);
+	check("client skips the row when no settings transport is present", slotRegistrations.length === 0);
 	check("client defers its availability check", timers.length === 1);
 	for (const fire of timers) fire();
-	check("client reports the missing settings transport", degraded.some((line) => String(line).includes("settingsScope")), JSON.stringify(degraded));
+	check(
+		"client reports the missing settings transport",
+		degraded.some((line) => String(line).includes("neither the configForms nor the settingsScope")),
+		JSON.stringify(degraded)
+	);
+
+	// (2) dsh 0.2.x: the transport is `configForms`, one form per Host-served
+	// namespace, and the row exists only while the Host serves that namespace.
+	// A hand-built schema (auto + de) proves the catalog came from the describe
+	// MIRROR, which the transport exposes as a store rather than as a document.
+	const tinySchema = {
+		uid: 1,
+		refs: {
+			"1": { uid: 1, dict: { language: 2 } },
+			"2": { uid: 2, list: [3, 4] },
+			"3": { uid: 3, value: "auto" },
+			"4": { uid: 4, value: "de", meta: { description: "Deutsch" } }
+		}
+	};
+	const scopeSnapshot = { value: { language: "ru" }, revision: 3, writable: true };
+	let scopeListener;
+	const settingsScope = {
+		bind: () => ({
+			getSnapshot: () => scopeSnapshot,
+			subscribe: (listener) => {
+				scopeListener = listener;
+				return () => {};
+			},
+			set: () => Promise.resolve(),
+			unset: () => Promise.resolve()
+		}),
+		describe: () => ({ namespaces: [{ ns: THINKING_NAMESPACE, schema: Config.toJSON() }] })
+	};
+	const formSnapshot = { status: "ready", value: { language: "ja" }, revision: 5, writable: true };
+	let formListener;
+	let whileServedCalls = 0;
+	const configForms = {
+		get: () => ({
+			getSnapshot: () => formSnapshot,
+			subscribe: (listener) => {
+				formListener = listener;
+				return () => {};
+			},
+			set: () => Promise.resolve(),
+			unset: () => Promise.resolve()
+		}),
+		describe: () => ({ getSnapshot: () => ({ view: { writable: true, namespaces: [{ ns: THINKING_NAMESPACE, schema: tinySchema }] } }) }),
+		whileServed: (namespaces, register) => {
+			whileServedCalls += 1;
+			return register(namespaces);
+		}
+	};
+	// Both transports are offered: a real harness serves one, and the row must
+	// mount exactly once — through the current generation.
+	clientExports.apply(makeClientCtx({ slots, locale, configForms, settingsScope, logger: { warn: () => {} } }));
+	check("client registers the row through configForms", slotRegistrations.length === 1 && whileServedCalls === 1);
+	check("client prefers configForms over the legacy settings scope", scopeListener === undefined);
+	const row = slotRegistrations[0];
+	check("client row targets the General item slot", row?.options.name === "settings.general.item" && row?.options.id === "thinking-language");
+	check("client registers its dictionaries", dictionaries.length === 1 && dictionaries[0].locales.includes("zh") && dictionaries[0].locales.includes("en"));
+	const syncs = [];
+	const boundActions = row?.options.inject({ sync: (...args) => syncs.push(args) });
+	check("client exposes a setLanguage write path", typeof boundActions?.setLanguage === "function");
+	check("client adopts the settings transport snapshot", typeof formListener === "function");
+	check("client pushes the served language and revision through the store", syncs.length === 1 && syncs[0][0] === "ja" && syncs[0][2] === 5, JSON.stringify(syncs));
+	check(
+		"client reads the catalog through the describe mirror",
+		JSON.stringify(syncs[0]?.[1]) === JSON.stringify([{ id: "auto" }, { id: "de", label: "Deutsch" }]),
+		JSON.stringify(syncs[0]?.[1])
+	);
+
+	// (3) dsh 0.1.x: the same form face, published as `settingsScope`.
+	slotRegistrations.length = 0;
+	const legacyBefore = registrationsSeen.length;
+	globalThis.window = {
+		__ModuleLoader__: {
+			load(registration) {
+				registrationsSeen.push(registration);
+			}
+		}
+	};
+	await import("./lib/client.js?legacy-transport");
+	delete globalThis.window;
+	const legacyExports = registrationsSeen[legacyBefore].factory(requireStub);
+	legacyExports.apply(makeClientCtx({ slots, locale, settingsScope, logger: { warn: () => {} } }));
+	check("client registers the row through the legacy settings scope", slotRegistrations.length === 1 && typeof scopeListener === "function");
+	check("client keeps the legacy write path", typeof slotRegistrations[0]?.options.inject({ sync: () => {} })?.setLanguage === "function");
+	check("client registers its dictionaries on the legacy generation too", dictionaries.length === 2);
 }
 
 // --- 6. schema metadata the client reads -----------------------------------

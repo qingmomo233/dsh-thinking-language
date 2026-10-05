@@ -112,7 +112,7 @@ The plugin degrades instead of failing when a service or dependency is absent:
 | --- | --- |
 | Harness without `systemPrompt` | the settings namespace keeps working |
 | `settings.register()` refused (duplicate / stricter signature) | one warning, the rest keeps reading and writing through the settings service |
-| Harness without `settingsScope` (client settings transport) | the row is skipped and reported once after boot |
+| Harness without a settings transport (`configForms` / `settingsScope`) | the row is skipped and reported once after boot |
 | Harness without the `locale` service | the row uses its built-in copy instead of crashing |
 | Harness without the platform UI primitives module | the row falls back to a native select and still shows |
 | `describe()` unavailable or a different schema shape | the picker falls back to the bundled catalog |

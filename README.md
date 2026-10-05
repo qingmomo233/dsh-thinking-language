@@ -88,7 +88,7 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 | --- | --- |
 | Harness 没有 `systemPrompt` | 设置命名空间仍可用 |
 | `settings.register()` 被拒绝（重名 / 更严格的签名） | 记录一次警告，其余功能继续通过 settings 服务读写 |
-| Harness 无 `settingsScope`（客户端设置通道） | 跳过设置行并在启动后记录一次警告 |
+| Harness 无设置通道（`configForms` / `settingsScope`） | 跳过设置行并在启动后记录一次警告 |
 | Harness 未提供 `locale` 服务 | 设置行使用内置文案（`lang.auto` 等）而非崩溃 |
 | Harness 未提供平台 UI primitives 模块 | 回退到原生下拉，设置行照常显示 |
 | `describe()` 不可用或 schema 结构不同 | 选择列表回退到内置语言表 |

@@ -35,9 +35,10 @@ export declare function readEnumField(schema: Record<string, unknown>, field: st
 export declare function readCatalog(described: unknown, ns: string): ThinkingLanguageOption[];
 
 /**
- * Required client services. Only `slots` is hard: `settingsScope` is acquired
- * through its own `ctx.inject` branch and `locale` is optional, so a leaner
- * harness loses individual features instead of the whole bundle.
+ * Required client services. Only `slots` is hard: the settings transport —
+ * `configForms` on dsh 0.2.x, `settingsScope` before it — is acquired through
+ * its own `ctx.inject` branch, and `locale` is optional, so a leaner harness
+ * loses individual features instead of the whole bundle.
  */
 export declare const inject: ['slots'];
 /** Client plugin body: register the picker row into Settings → General. */
