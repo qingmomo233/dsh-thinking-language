@@ -3,7 +3,7 @@
 // Runs against a minimal fake cordis context and the plugin's own pure core, so
 // it needs no running harness:
 //
-//   1. the host entry registers its namespace, prompt surfaces, and command
+//   1. the host entry registers its namespace and prompt surfaces
 //   2. the system-locale → thinking-language mapping covers the whole catalog
 //      (the pre-refactor build answered Simplified Chinese for every locale
 //      except `en`)
@@ -24,14 +24,12 @@ import {
 	THINKING_LANGUAGES,
 	THINKING_NAMESPACE,
 	apply,
-	describeLanguage,
+	currentLanguage,
 	languageForSystemLocale,
-	parseCommandArgument,
 	resetRegistration,
 	resolveLanguage,
 	thinkingInstruction,
-	thinkingReminder,
-	usageLine
+	thinkingReminder
 } from "./lib/index.js";
 
 const failures = [];
@@ -42,7 +40,7 @@ const check = (label, ok, extra = "") => {
 
 // --- 1. host entry against a fake cordis context ----------------------------
 const document = {};
-const registrations = { namespaces: [], sections: [], contexts: [], commands: [] };
+const registrations = { namespaces: [], sections: [], contexts: [] };
 
 const settings = {
 	register(ns, schema) {
@@ -79,19 +77,11 @@ const systemPrompt = {
 		if (context.name === "app:thinking-language-reminder") contextTextThunk = context.text;
 	}
 };
-const commands = {
-	register(def) {
-		registrations.commands.push({ name: def.name, description: def.description, handler: def.handler });
-		return () => {};
-	}
-};
-
-function makeCtx({ withCommands = true, withSystemPrompt = true } = {}) {
+function makeCtx({ withSystemPrompt = true } = {}) {
 	const ctx = {
 		get(name) {
 			if (name === "settings") return settings;
 			if (name === "systemPrompt" && withSystemPrompt) return systemPrompt;
-			if (name === "commands" && withCommands) return commands;
 			return void 0;
 		},
 		effect(fn) {
@@ -110,7 +100,7 @@ function makeCtx({ withCommands = true, withSystemPrompt = true } = {}) {
 	};
 	// The real context resolves services as plain properties (`ctx.settings`);
 	// the fake does the same so the plugin's own access style is exercised.
-	for (const name of ["settings", "systemPrompt", "commands", "logger"]) {
+	for (const name of ["settings", "systemPrompt", "logger"]) {
 		Object.defineProperty(ctx, name, {
 			get: () => ctx.get(name)
 		});
@@ -123,13 +113,14 @@ apply(makeCtx());
 check("settings namespace registered", registrations.namespaces.some((entry) => String(entry.ns) === THINKING_NAMESPACE));
 check("system-prompt section registered", registrations.sections.includes("app:thinking-language"));
 check("dynamic reminder context registered", registrations.contexts.includes("app:thinking-language-reminder"));
-check("/thinking-language command registered", registrations.commands.some((command) => command.name === "thinking-language"));
 check("schema default is auto", Config({})[THINKING_LANGUAGE_FIELD] === THINKING_LANGUAGE_DEFAULT);
 
-// A harness without `commands` must still get its prompt surfaces.
-apply(makeCtx({ withCommands: false }));
-check("commands-less harness keeps the prompt section", registrations.sections.length === 2);
-check("commands-less harness registers no command", registrations.commands.length === 1);
+// A harness without `systemPrompt` must still get its settings namespace. The
+// namespace is a process singleton, so a second apply does not re-register it.
+const beforePromptless = { sections: registrations.sections.length, contexts: registrations.contexts.length };
+apply(makeCtx({ withSystemPrompt: false }));
+check("prompt-less harness registers no prompt surface", registrations.sections.length === beforePromptless.sections && registrations.contexts.length === beforePromptless.contexts);
+check("the settings namespace registers once per process", registrations.namespaces.length === 1);
 
 // --- 2. system-locale resolution -------------------------------------------
 const sectionText = () => sectionTextThunk({});
@@ -150,8 +141,10 @@ document.locale = { preference: "zh-Hant-HK" };
 check("locale zh-Hant-HK -> Traditional Chinese", sectionText().includes("繁體中文"));
 document.locale = { preference: "ja" };
 check("locale ja -> Japanese", sectionText().includes("日本語"));
-document.locale = { preference: "ko-KR" };
-check("locale ko-KR -> Korean", sectionText().includes("한국어"));
+document.locale = { preference: "pt-BR" };
+check("locale pt-BR -> Portuguese", sectionText().includes("Português"));
+document.locale = { preference: "ar-EG" };
+check("locale ar-EG -> Arabic", sectionText().includes("العربية"));
 document.locale = { preference: "de-AT" };
 check("locale de-AT -> German", sectionText().includes("Deutsch"));
 document.locale = { preference: "en-US" };
@@ -190,27 +183,25 @@ check("non-object section -> auto treatment", sectionText().includes("English"))
 document[THINKING_NAMESPACE] = { language: "auto" };
 delete document[THINKING_NAMESPACE];
 
-// --- 3. read/write handle shapes -------------------------------------------
-const handler = registrations.commands.find((command) => command.name === "thinking-language").handler;
-const invoke = async (rawInput) => handler({ rawInput, agent: "a", signal: new AbortController().signal, commandId: "c1" });
-
-const setResult = await invoke("ru");
-check("command set ru -> success", setResult.kind === "success" && setResult.text.includes("ru"));
-const showResult = await invoke("");
-check("command show -> reports the current value", showResult.kind === "success" && showResult.text.includes("Русский"));
-const invalidResult = await invoke("klingon");
-check("command invalid -> error", invalidResult.kind === "error" && invalidResult.text.includes("Unknown language"));
-check("command accepts a native endonym", (await invoke("Русский")).kind === "success");
-check("command accepts an English name", (await invoke("german")).kind === "success");
-check("command accepts a unique prefix", (await invoke("japan")).kind === "success" && document[THINKING_NAMESPACE]?.language === "ja");
-const ambiguous = await invoke("zh");
-check("ambiguous prefix falls back to an exact id", ambiguous.kind === "success" && document[THINKING_NAMESPACE]?.language === "zh-CN");
-const resetResult = await invoke("auto");
-check("command reset -> success", resetResult.kind === "success");
-check("command reset clears the stored value", document[THINKING_NAMESPACE]?.language === "auto");
+// --- 3. read-handle shapes --------------------------------------------------
+// The host reads the preference through whichever handle the harness hands
+// out: the namespace scope `settings.register()` returned, or the settings
+// service itself.
+document[THINKING_NAMESPACE] = { language: "ja" };
+const scope = settings.register(THINKING_NAMESPACE, Config);
+check("namespace scope carries the stored value", currentLanguage(scope) === "ja");
+check("bare settings service carries the stored value", currentLanguage(settings) === "ja");
+check("no handle -> the default", currentLanguage(undefined) === THINKING_LANGUAGE_DEFAULT);
+check("scope and service resolve identically", resolveLanguage(scope, settings) === resolveLanguage(settings, settings));
+document[THINKING_NAMESPACE] = { language: "bogus" };
+check("an unknown stored id is passed through verbatim", currentLanguage(settings) === "bogus");
+check("an unknown stored id still resolves", resolveLanguage(settings, settings) === "bogus");
+document[THINKING_NAMESPACE] = "not-a-section";
+check("a non-object section reads as the default", currentLanguage(settings) === THINKING_LANGUAGE_DEFAULT);
+delete document[THINKING_NAMESPACE];
 
 // A harness whose settings service refuses to register the namespace must keep
-// the prompt and command surfaces alive.
+// the prompt surface alive and keep reading through the service.
 resetRegistration();
 const failingDocument = {};
 const failingSettings = {
@@ -229,7 +220,6 @@ const failingCtx = {
 	get(name) {
 		if (name === "settings") return failingSettings;
 		if (name === "systemPrompt") return systemPrompt;
-		if (name === "commands") return commands;
 		if (name === "logger") return { warn: (...args) => warnings.push(args) };
 		return void 0;
 	},
@@ -246,7 +236,6 @@ const failingCtx = {
 };
 Object.defineProperty(failingCtx, "settings", { get: () => failingSettings });
 Object.defineProperty(failingCtx, "systemPrompt", { get: () => systemPrompt });
-Object.defineProperty(failingCtx, "commands", { get: () => commands });
 Object.defineProperty(failingCtx, "logger", { get: () => ({ warn: (...args) => warnings.push(args) }) });
 const failingSection = [];
 const originalSection = systemPrompt.section.bind(systemPrompt);
@@ -254,29 +243,14 @@ systemPrompt.section = (section) => {
 	failingSection.push(section);
 	originalSection(section);
 };
-const failingCommands = [];
-const originalRegister = commands.register.bind(commands);
-commands.register = (def) => {
-	failingCommands.push(def);
-	return originalRegister(def);
-};
 apply(failingCtx);
 check("refused registration is logged once", warnings.length === 1, JSON.stringify(warnings[0]?.[0] ?? ""));
 check("refused registration still exposes the prompt section", failingSection.some((section) => section.name === "app:thinking-language"));
-check("refused registration still exposes the command", failingCommands.some((def) => def.name === "thinking-language"));
-failingDocument[THINKING_NAMESPACE] = { language: "auto" };
-await failingCommands.find((def) => def.name === "thinking-language").handler({ rawInput: "fr", agent: "a", signal: new AbortController().signal, commandId: "c2" });
-check("refused registration still writes through the service", failingDocument[THINKING_NAMESPACE]?.language === "fr");
+failingDocument[THINKING_NAMESPACE] = { language: "fr" };
+check("refused registration still reads through the service", currentLanguage(failingSettings) === "fr" && resolveLanguage(failingSettings, failingSettings) === "fr");
 systemPrompt.section = originalSection;
-commands.register = originalRegister;
 
-// --- 4. command argument + text helpers ------------------------------------
-check("empty argument asks to show", parseCommandArgument("  ").kind === "show");
-check("reset alias maps to auto", parseCommandArgument("reset").id === THINKING_LANGUAGE_DEFAULT);
-check("id matching ignores case", parseCommandArgument("RU").id === "ru");
-check("usage line lists every id", THINKING_LANGUAGE_IDS.every((id) => usageLine().includes(id)));
-check("describeLanguage names the endonym", describeLanguage("ja").includes("日本語"));
-check("describeLanguage explains auto", describeLanguage(THINKING_LANGUAGE_DEFAULT).includes("auto"));
+// --- 4. text helpers --------------------------------------------------------
 check("instruction is empty for auto", thinkingInstruction(THINKING_LANGUAGE_DEFAULT) === "");
 check("reminder is empty for auto", thinkingReminder(THINKING_LANGUAGE_DEFAULT) === "");
 
@@ -488,9 +462,12 @@ const FROZEN_COPY = [
 	'"title": "思考言語"',
 	'"hint": "モデルの思考プロセスで使う言語。新しいセッションに適用されます。"',
 	'"lang.auto": "システムに従う（自動）"',
-	'"title": "사고 언어"',
-	'"hint": "모델의 추론 과정에 사용할 언어입니다. 새 세션에 적용됩니다."',
-	'"lang.auto": "시스템 따르기 (자동)"'
+	'"title": "لغة التفكير"',
+	'"hint": "اللغة المستخدمة في عملية تفكير النموذج. تُطبَّق على الجلسات الجديدة."',
+	'"lang.auto": "اتّباع النظام (تلقائي)"',
+	'"title": "Idioma do raciocínio"',
+	'"hint": "Idioma usado no processo de raciocínio do modelo. Aplica-se a novas sessões."',
+	'"lang.auto": "Seguir o sistema (automático)"'
 ];
 const missingCopy = FROZEN_COPY.filter((literal) => !clientSource.includes(literal));
 check("row copy is byte-for-byte unchanged", missingCopy.length === 0, missingCopy.join(" | "));

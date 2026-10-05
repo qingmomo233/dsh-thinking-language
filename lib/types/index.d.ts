@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 
 /** One entry in the thinking-language catalog. */
 export interface ThinkingLanguage {
-    /** Stable id shared by the settings schema, the command, and the client picker. */
+    /** Stable id shared by the settings schema and the client picker. */
     id: string;
     /** English language name. */
     name: string;
@@ -65,19 +65,6 @@ export declare function resolveLanguage(settings: SettingsReader | undefined | n
 export declare function thinkingInstruction(language: string | undefined): string;
 /** Compose the per-step dynamic reminder for one language id; `auto` and unknown ids yield "". */
 export declare function thinkingReminder(language: string | undefined): string;
-/** Human-readable current value for the command reply. */
-export declare function describeLanguage(language: string | undefined): string;
-/** The `/thinking-language` usage line. */
-export declare function usageLine(): string;
-/** Parse one command argument into a show/set/invalid outcome. */
-export declare function parseCommandArgument(raw: unknown): {
-    kind: 'show';
-} | {
-    kind: 'set';
-    id: string;
-} | {
-    kind: 'invalid';
-};
 
 /** Stable Cordis plugin name. */
 export declare const name: 'thinking-language';
@@ -89,5 +76,5 @@ export declare const inject: string[];
  * refusing the registration.
  */
 export declare function resetRegistration(): void;
-/** Register the settings namespace, prompt surfaces, and command. */
+/** Register the settings namespace and the prompt surfaces. */
 export declare function apply(ctx: Context): void;

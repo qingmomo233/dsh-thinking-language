@@ -1,7 +1,7 @@
 # dsh-thinking-language bundle patch.
 #
 # Registers the plugin's host entry (settings namespace + system-prompt
-# section + the /thinking-language command). The browser half is discovered
+# section + per-step reminder). The browser half is discovered
 # automatically by dsh-client-modules through the package's `dsh.client`
 # declaration, so no client row is needed here.
 

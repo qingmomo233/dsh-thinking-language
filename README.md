@@ -7,8 +7,8 @@
 # dsh-thinking-language
 
 一个 DeepSeek Harness 插件，用于切换智能体**思考过程（推理 / 链式思考）的语言**。
-支持中文、英文、俄语、法语、德语、西班牙语、日语、韩语等主流语言，也可选择
-「跟随系统（自动）」——让思考语言跟随系统界面语言。
+支持中文（简/繁）、英文、俄语、法语、德语、西班牙语、阿拉伯语、葡萄牙语、日语，
+也可选择「跟随系统（自动）」——让思考语言跟随系统界面语言。
 
 ## 功能
 
@@ -18,21 +18,16 @@
   书写内部推理过程。选择「跟随系统（自动）」时，指令使用系统界面语言
   （设置 → 通用 → 语言，缺省中文）。指令在每次组装提示词时求值，因此对**新建会话**
   生效；已有会话继续使用其已组装的提示词。
-- **`/thinking-language` 命令** — 直接在聊天中查看或切换语言，例如 `/thinking-language ru`
-  或 `/thinking-language auto`。支持 id、英文名、母语名，以及唯一前缀（如 `japan`）。
 
-设置存储于标准用户设置文档的 `thinking-language` 命名空间，重启后仍保留，
-设置行与命令共享同一份配置。
+设置存储于标准用户设置文档的 `thinking-language` 命名空间，重启后仍保留。
 
 > 注意：该设置只影响模型的内部思考/链式思考，**不会改变**给用户的最终回答语言。
 
 ## 支持的语言
 
 `auto`（跟随系统） · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
-`ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `pt` Português ·
-`it` Italiano · `ja` 日本語 · `ko` 한국어 · `ar` العربية · `hi` हिन्दी ·
-`tr` Türkçe · `vi` Tiếng Việt · `th` ไทย · `pl` Polski · `uk` Українська ·
-`nl` Nederlands · `sv` Svenska · `id` Bahasa Indonesia · `cs` Čeština
+`ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `ar` العربية ·
+`pt` Português · `ja` 日本語
 
 「自动」按系统语言标签逐级匹配：精确 id → 地区变体 → 语言代码。因此 `en-US` → 英文、
 `ja` → 日语、`de-AT` → 德语；中文按**字体/地区**判定：`zh`、`zh-Hans`、`zh-CN` → 简体，
@@ -41,68 +36,29 @@
 
 ## 安装
 
-插件必须装进**你实际在用的那个 Harness 配置目录**。桌面版和命令行版默认不是同一个：
+插件要装进**你实际在用的那个 Harness 主目录**（用 `DSH_HOME` / `DSH_PROFILE` 确认）。
 
-| 用法 | Harness 主目录 | 配置名 |
-| --- | --- | --- |
-| 官方桌面版（`DeepSeek Harness.exe`） | `%APPDATA%\Deepseek-Harness-Desktop\dsh-home`（旧版）或桌面版自己的 `dsh-home` | `web` / `desktop` |
-| 命令行 `dsh web` / `dsh` | `%USERPROFILE%\.dsh` | `web`（或 `desktop`） |
-
-用 `dsh` 启动的实例，看环境变量即可确认：`DSH_HOME` 与 `DSH_PROFILE`。
-**桌面版主目录由应用自己管理**，对它执行 `dsh --profile …` 会被拒绝
-（`profile "desktop" is managed exclusively by the Electron application`），
-所以桌面版请用应用内的插件安装（市场 / 插件页，只接受 `github:owner/repo[#sha]`）。
-
-**命令行安装（从 GitHub，推荐）：**
+**命令行（从 GitHub 安装，推荐）：**
 
 ```bash
 dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
 ```
 
-**或从本地源码目录安装**（把 `<插件目录>` 换成你自己的本地路径；该参数由 pnpm 在配置目录下解析，所以请给出插件目录本身）：
+也可装本地源码目录：`dsh plugin --profile web add <插件目录>`（pnpm 在配置目录下解析，
+请给出插件目录本身）。
 
-```bash
-dsh plugin --profile web add <插件目录>
-```
+**桌面版：** 用应用内的插件市场安装，只接受 `github:owner/repo[#sha]`。
+桌面版主目录由应用自己管理，`dsh --profile …` 会被拒绝
+（`profile "desktop" is managed exclusively by the Electron application`）。
 
-该命令会把插件安装到配置目录，并因其声明了 `dsh.bundle.patch` 而自动追加到
-配置文件的 bundle 层。
+装完**必须重启 Harness**（桌面版完全退出后重新打开）。客户端模块图是在渲染页面时
+写进 `index.html` 的，只刷新页面不会把新插件送进已经打开的页面。
 
-安装后**必须重启 Harness**（桌面版请完全退出后重新打开，`dsh web` 请重启进程）。
-客户端模块图是在页面渲染时写进 `index.html` 的：只刷新页面、或让 bundle 层热更新，
-都不会把新插件的客户端 bundle 送进已经打开的页面。
-
-### 装不上 / 不显示时先查这三处
-
-1. **旧包名残留。** v1.1 起包名从 `dsh-plugin-thinking-language` 改为
-   `dsh-thinking-language`。旧名如果还留在 `package.json` 的
-   `dependencies` / `dsh.profile.bundles` 里，Harness 会直接跳过它并在日志里写：
-
-   ```
-   dsh: skipping profile bundle "dsh-plugin-thinking-language": Error: dsh: cannot resolve profile bundle …
-   ```
-
-   先删干净再装：
-
-   ```bash
-   dsh plugin --profile web remove dsh-plugin-thinking-language
-   dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
-   ```
-
-2. **兼容性闸门。** Harness 会核对 `package.json` 的 `peerDependencies` 与
-   自身的 dsh 版本，对不上就整包跳过：
-
-   ```
-   dsh: skipping profile bundle "…": Error: Plugin … is incompatible with dsh 0.2.0-rc.2: peerDependencies {…}
-   ```
-
-   注意 `^0.1.0-rc.6` 这类写法**不匹配 0.2.x**。本插件声明 `dsh.compatibility`
-   与有界 peer 范围（`>=0.1.0-rc.5 <0.3.0-0`）就是为了避免这种误判。
-
-3. **配置目录的 `node_modules` 断链。** 桌面版会把 `@deepseek-ai/*` 以 junction
-   方式链进 `<DSH_HOME>\profiles\node_modules\@deepseek-ai\`。如果应用安装目录
-   被改名或移动过（例如 `D:\DSH Desktop` → `D:\DSHDesktop`），这些链接会全部
-   悬空。用 `Get-Item` 看 `Target`，`Test-Path` 验证目标是否还在。
+> **不显示时先看日志里有没有 `skipping profile bundle`：**
+> 包名残留旧名（v1.1 起由 `dsh-plugin-thinking-language` 改为 `dsh-thinking-language`）
+> 会被整包跳过，先 `dsh plugin --profile web remove dsh-plugin-thinking-language` 再装；
+> `peerDependencies` 与 dsh 版本不匹配（`^0.1.0-rc.6` 这类**不匹配 0.2.x**）同样会
+> 被跳过，日志会写 `is incompatible with dsh …`。
 
 ### 关于设置暴露补丁（仅极旧版本需要）
 
@@ -124,27 +80,17 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 2. 在「思考语言」行选择语言（选择「跟随系统（自动）」即使用系统界面语言）。
 3. 开启**新会话**——其思考过程将使用所选语言书写。
 
-或直接在聊天中输入：
-
-```
-/thinking-language              → 查看当前值及用法
-/thinking-language ru           → 设为俄语
-/thinking-language auto         → 恢复自动
-/thinking-language 日本語       → 支持 id、英文名、母语名与唯一前缀
-```
-
 ## 兼容性
 
 插件在以下方向做过兼容性处理，缺少某个服务或依赖时**降级**而不是整体失效：
 
 | 场景 | 行为 |
 | --- | --- |
-| Harness 没有 `systemPrompt` | 设置命名空间与 `/thinking-language` 命令仍可用 |
-| Harness 没有 `commands` | 设置命名空间与提示词注入仍可用 |
+| Harness 没有 `systemPrompt` | 设置命名空间仍可用 |
 | `settings.register()` 被拒绝（重名 / 更严格的签名） | 记录一次警告，其余功能继续通过 settings 服务读写 |
-| Harness 无 `settingsScope`（客户端设置通道） | 跳过设置行并在启动后记录一次警告，命令侧不受影响 |
+| Harness 无 `settingsScope`（客户端设置通道） | 跳过设置行并在启动后记录一次警告 |
 | Harness 未提供 `locale` 服务 | 设置行使用内置文案（`lang.auto` 等）而非崩溃 |
-| Harness 未提供平台 UI primitives 模块 | 跳过设置行并记录警告，不影响其他插件 |
+| Harness 未提供平台 UI primitives 模块 | 回退到原生下拉，设置行照常显示 |
 | `describe()` 不可用或 schema 结构不同 | 选择列表回退到内置语言表 |
 | 设置文档被手工改坏（非对象、非字符串） | 视为 `auto`，不抛错，也不覆盖用户数据 |
 | 系统语言标签无法识别 | 回退英文（与界面语言插件兜底一致） |
@@ -157,8 +103,8 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 
 | 部分 | 文件 | 作用 |
 | --- | --- | --- |
-| 纯逻辑核心 | `lib/languages.js` | 语言目录、系统语言标签匹配、指令与提醒文案、命令参数解析（无 cordis / 无浏览器依赖，可直接单测） |
-| 服务端入口 | `lib/index.js` | 注册 `thinking-language` 设置命名空间、`app:thinking-language` 系统提示词小节（顺序 85）及 `/thinking-language` 命令 |
+| 纯逻辑核心 | `lib/languages.js` | 语言目录、系统语言标签匹配、指令与提醒文案（无 cordis / 无浏览器依赖，可直接单测） |
+| 服务端入口 | `lib/index.js` | 注册 `thinking-language` 设置命名空间与 `app:thinking-language` 系统提示词小节（顺序 85） |
 | 浏览器端 | `lib/client.js` | 向 `settings.general.item` 槽注册选择行；通过客户端设置作用域读写同一命名空间 |
 | Bundle 补丁 | `cordis.patch.yml` | 把插件行插入组合后的配置树 |
 | 测试 | `smoke-test.mjs` | 宿主注册、语言匹配矩阵、读写句柄兼容、浏览器 bundle 漂移与降级路径、UI 文案锁定 |

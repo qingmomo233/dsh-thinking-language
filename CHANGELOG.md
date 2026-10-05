@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.0
+
+### Removed
+
+- **The `/thinking-language` chat command.** The Settings → General row is the
+  only surface now: the command duplicated it and was rarely used. Gone with it
+  are its pure helpers (`describeLanguage`, `usageLine`, `parseCommandArgument`)
+  from `lib/languages.js`, the host's `commands` injection branch, the exported
+  type declarations, and both suites' command coverage.
+
+### Changed
+
+- The host entry no longer acquires the `commands` service, so one less
+  degradation path is needed. Reads and writes still go through the same
+  `thinking-language` namespace, and the stored value is untouched.
+- **The catalog is down to ten entries**: `zh-CN`, `zh-TW`, `en`, `ru`, `fr`,
+  `de`, `es`, `ar`, `pt`, `ja` (plus `auto`). Italian, Korean, Hindi, Turkish,
+  Vietnamese, Thai, Polish, Ukrainian, Dutch, Swedish, Indonesian and Czech are
+  gone from the picker and the settings schema. A session that stored one of the
+  removed ids keeps the value verbatim (the plugin never rewrites user data) and
+  simply produces no thinking instruction, exactly like any other unknown id.
+- The row's own dictionaries now match that set: Arabic and Portuguese were
+  added, Korean removed.
+
 ## 1.3.0
 
 Desktop-app (dsh 0.2.0-rc.2) alignment. No settings migration: the

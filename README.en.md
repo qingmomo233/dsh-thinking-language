@@ -7,9 +7,9 @@
 # dsh-thinking-language
 
 A DeepSeek Harness plugin that lets you switch the language of the agent's
-**thinking/reasoning process** (chain-of-thought). Supports Chinese, English,
-Russian, French, German, Spanish, Japanese, Korean and many more mainstream
-languages, or "auto" to follow the system locale.
+**thinking/reasoning process** (chain-of-thought). Supports Chinese (Simplified
+and Traditional), English, Russian, French, German, Spanish, Arabic, Portuguese
+and Japanese, or "auto" to follow the system locale.
 
 ## What it does
 
@@ -22,13 +22,9 @@ languages, or "auto" to follow the system locale.
   system UI locale (Settings → General → Language; defaults to Chinese). The
   instruction is evaluated per prompt assembly, so it applies to every **new
   session**. Existing sessions keep the prompt they already composed.
-- **`/thinking-language` command** — set or inspect the language directly from
-  chat, e.g. `/thinking-language ru` or `/thinking-language auto`. Ids, English
-  names, native names, and unique prefixes (`japan`) all work.
 
 The setting is stored in the standard user-settings document under the
-`thinking-language` namespace, so it survives restarts and is shared by the
-settings row and the command.
+`thinking-language` namespace, so it survives restarts.
 
 > The final answer to the user is **not** affected: the setting only targets
 > the model's internal thinking/chain-of-thought.
@@ -36,10 +32,8 @@ settings row and the command.
 ## Supported languages
 
 `auto` (follow the system) · `zh-CN` 简体中文 · `zh-TW` 繁體中文 · `en` English ·
-`ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `pt` Português ·
-`it` Italiano · `ja` 日本語 · `ko` 한국어 · `ar` العربية · `hi` हिन्दी ·
-`tr` Türkçe · `vi` Tiếng Việt · `th` ไทย · `pl` Polski · `uk` Українська ·
-`nl` Nederlands · `sv` Svenska · `id` Bahasa Indonesia · `cs` Čeština
+`ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `ar` العربية ·
+`pt` Português · `ja` 日本語
 
 *Auto* matches the system language tag hierarchically: exact id, then region
 variant, then language code. So `en-US` → English, `ja` → Japanese, `de-AT` →
@@ -50,8 +44,9 @@ plugin's own fallback).
 
 ## Install
 
-Run once from a shell (adjust the profile name if you use a different profile,
-e.g. `desktop`):
+Install into **the Harness home you actually run** — check `DSH_HOME` /
+`DSH_PROFILE`, since the desktop app and the CLI do not share one by default
+(adjust the profile name too if you use e.g. `desktop`):
 
 **From GitHub (recommended):**
 
@@ -67,64 +62,22 @@ directory itself):
 dsh plugin --profile web add <plugin-dir>
 ```
 
-The command installs the package into the profile and appends it to the
-profile's bundle layer (because the package declares `dsh.bundle.patch`).
+Then **restart the Harness** (fully quit and relaunch the desktop app). The
+client module graph is written into `index.html` when the page is rendered, so a
+page refresh does not deliver a newly added plugin to an already-open page.
 
-Then **restart the Harness** (fully quit and relaunch the desktop app, or
-restart the `dsh web` process). The client module graph is written into
-`index.html` when the page is rendered, so a page refresh — or a live bundle-layer
-reload — does not deliver a newly added plugin's client bundle to an already-open
-page.
-
-### Two install targets, two homes
-
-The desktop app and the command-line launcher do not share a Harness home by
-default:
-
-| How you run it | Harness home | Profile |
-| --- | --- | --- |
-| Official desktop app (`DeepSeek Harness.exe`) | the app's own `dsh-home` (older builds: `%APPDATA%\Deepseek-Harness-Desktop\dsh-home`) | `web` / `desktop` |
-| `dsh web` / `dsh` | `%USERPROFILE%\.dsh` | `web` (or `desktop`) |
-
-Check `DSH_HOME` and `DSH_PROFILE` to see which one is live. The desktop app
-**owns** its home: `dsh --profile …` against it is refused with
-`profile "desktop" is managed exclusively by the Electron application`, so use
-the app's own plugin installer (market / plugins page, which accepts only a
+The desktop app **owns** its home: `dsh --profile …` against it is refused with
+`profile "desktop" is managed exclusively by the Electron application`, so
+install from the app's own plugin market instead (it accepts only a
 `github:owner/repo[#sha]` spec).
 
-### If it installs but does not show
-
-1. **Stale old package name.** A leftover `dsh-plugin-thinking-language` entry in
-   `dependencies` or `dsh.profile.bundles` makes the Harness skip the bundle and
-   log:
-
-   ```
-   dsh: skipping profile bundle "dsh-plugin-thinking-language": Error: dsh: cannot resolve profile bundle …
-   ```
-
-   Remove it, then install the current name:
-
-   ```bash
-   dsh plugin --profile web remove dsh-plugin-thinking-language
-   dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
-   ```
-
-2. **The compatibility gate.** The Harness checks `peerDependencies` against its
-   own dsh version and skips the whole bundle on a mismatch:
-
-   ```
-   dsh: skipping profile bundle "…": Error: Plugin … is incompatible with dsh 0.2.0-rc.2: peerDependencies {…}
-   ```
-
-   Note that `^0.1.0-rc.6` does **not** match 0.2.x. This plugin declares
-   `dsh.compatibility` and a bounded peer range (`>=0.1.0-rc.5 <0.3.0-0`) to
-   avoid exactly that mistake.
-
-3. **Broken `node_modules` links in the config directory.** The desktop app
-   junctions `@deepseek-ai/*` into `<DSH_HOME>\profiles\node_modules\@deepseek-ai\`.
-   If the app install directory was renamed or moved (e.g. `D:\DSH Desktop` →
-   `D:\DSHDesktop`) those links all dangle. Inspect `Target` with `Get-Item` and
-   confirm each target still exists with `Test-Path`.
+> **If it installs but does not show, look for `skipping profile bundle` in the
+> log.** A leftover entry under the old package name (renamed from
+> `dsh-plugin-thinking-language` to `dsh-thinking-language` in v1.1) is skipped —
+> `dsh plugin --profile web remove dsh-plugin-thinking-language` first. A
+> `peerDependencies` mismatch against the running dsh version is skipped too
+> (`^0.1.0-rc.6` does **not** match 0.2.x); the log says
+> `is incompatible with dsh …`.
 
 ### About the settings-exposure patch (very old harnesses only)
 
@@ -151,27 +104,17 @@ node scripts/patch-apiproxy.mjs --write  # apply (writes a .dsh-thinking-languag
 3. Start a **new session** — its thinking process is written in the selected
    language.
 
-Or from chat:
-
-```
-/thinking-language              → show the current value and usage
-/thinking-language ru           → set Russian
-/thinking-language auto         → back to auto
-/thinking-language 日本語       → ids, English names, native names, unique prefixes
-```
-
 ## Compatibility
 
 The plugin degrades instead of failing when a service or dependency is absent:
 
 | Situation | Behaviour |
 | --- | --- |
-| Harness without `systemPrompt` | settings namespace and `/thinking-language` keep working |
-| Harness without `commands` | settings namespace and prompt injection keep working |
+| Harness without `systemPrompt` | the settings namespace keeps working |
 | `settings.register()` refused (duplicate / stricter signature) | one warning, the rest keeps reading and writing through the settings service |
-| Harness without `settingsScope` (client settings transport) | the row is skipped and reported once after boot; the command is unaffected |
+| Harness without `settingsScope` (client settings transport) | the row is skipped and reported once after boot |
 | Harness without the `locale` service | the row uses its built-in copy instead of crashing |
-| Harness without the platform UI primitives module | the row is skipped and reported; other plugins are unaffected |
+| Harness without the platform UI primitives module | the row falls back to a native select and still shows |
 | `describe()` unavailable or a different schema shape | the picker falls back to the bundled catalog |
 | Hand-edited/corrupt settings section | treated as `auto`; nothing is thrown and user data is never rewritten |
 | Unrecognised system language tag | falls back to English (matching the shell locale plugin) |
@@ -185,8 +128,8 @@ fallback copy, and `smoke-test.mjs` fails when the two drift apart.
 
 | Part | File | Role |
 | --- | --- | --- |
-| Pure core | `lib/languages.js` | catalog, system-locale tag matching, instruction/reminder copy, command parsing (no cordis, no browser globals — directly unit-testable) |
-| Host entry | `lib/index.js` | registers the `thinking-language` settings namespace, the `app:thinking-language` system-prompt section (order 85), and the `/thinking-language` command |
+| Pure core | `lib/languages.js` | catalog, system-locale tag matching, instruction/reminder copy (no cordis, no browser globals — directly unit-testable) |
+| Host entry | `lib/index.js` | registers the `thinking-language` settings namespace and the `app:thinking-language` system-prompt section (order 85) |
 | Browser bundle | `lib/client.js` | registers the picker row into the `settings.general.item` slot and reads/writes the same namespace through the client settings scope |
 | Bundle patch | `cordis.patch.yml` | inserts the plugin row into the composed profile tree |
 | Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths, frozen UI copy |

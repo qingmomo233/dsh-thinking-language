@@ -91,26 +91,10 @@ class FakeSystemPrompt extends Service {
 	}
 }
 
-/** A command registry shaped like `@deepseek-ai/dsh-commands` (same effect binding). */
-class FakeCommands extends Service {
-	constructor(ctx) {
-		super(ctx, "commands");
-		this.commands = new Map();
-	}
-	register(def) {
-		const owner = this.ctx;
-		return owner.effect(() => {
-			this.commands.set(def.name, def);
-			return () => this.commands.delete(def.name);
-		}, "fake commands.register");
-	}
-}
-
 const document = {};
 const ctx = new Context();
 const settings = new FakeSettings(ctx, document);
 const systemPrompt = new FakeSystemPrompt(ctx);
-const commands = new FakeCommands(ctx);
 
 const plugin = await ctx.plugin({ name, inject: [], apply });
 await plugin;
@@ -120,7 +104,6 @@ check("namespace registered through the real container", registrations.includes(
 check("settings schema is the plugin's Config", settings.registrations.get(THINKING_NAMESPACE) === Config);
 check("prompt section registered", systemPrompt.sections.has("app:thinking-language"));
 check("prompt context registered", systemPrompt.contexts.has("app:thinking-language-reminder"));
-check("command registered", commands.commands.has("thinking-language"));
 
 // Real cordis evaluates the prompt thunks per call, so a settings write must be
 // visible to the very next call with no reload.
@@ -131,26 +114,17 @@ check("section text follows the stored value", sectionText().includes("Русс�
 check("context text follows the stored value", contextText().includes("Русский"));
 await settings.update(THINKING_NAMESPACE, { language: "ja" });
 check("section text follows a service write", sectionText().includes("日本語") && !sectionText().includes("Русский"));
-
-const handler = commands.commands.get("thinking-language").handler;
-const invoked = await handler({ rawInput: "de", agent: "a", signal: new AbortController().signal, commandId: "c1" });
-check("command write succeeds", invoked.kind === "success", invoked.text);
-check("command write landed in the document", document[THINKING_NAMESPACE]?.language === "de");
-check("plugin reads back its own write", currentLanguage(settings) === "de");
-const reset = await handler({ rawInput: "auto", agent: "a", signal: new AbortController().signal, commandId: "c2" });
-check("reset succeeds", reset.kind === "success");
-check("reset stores the auto value", document[THINKING_NAMESPACE]?.[THINKING_LANGUAGE_FIELD] === "auto");
+check("plugin reads back a service write", currentLanguage(settings) === "ja");
 
 // Disposal must remove every registration (cordis scopes them to the fiber).
 const beforeDispose = {
 	sections: systemPrompt.sections.size,
-	contexts: systemPrompt.contexts.size,
-	commands: commands.commands.size
+	contexts: systemPrompt.contexts.size
 };
 await plugin.dispose();
 check(
 	"disposing the fiber removes every registration",
-	systemPrompt.sections.size === 0 && systemPrompt.contexts.size === 0 && commands.commands.size === 0,
+	systemPrompt.sections.size === 0 && systemPrompt.contexts.size === 0,
 	JSON.stringify(beforeDispose)
 );
 
@@ -163,7 +137,7 @@ new FakeSettings(bareCtx, bareDocument);
 const barePlugin = await bareCtx.plugin({ name, inject: [], apply });
 await barePlugin;
 check("bare container still registers the namespace", bareDocument !== undefined && [...bareCtx.settings.registrations.keys()].includes(THINKING_NAMESPACE));
-check("bare container survives with no prompt/command services", true);
+check("bare container survives with no prompt services", true);
 await barePlugin.dispose();
 
 // --- client bundle: a LATE locale service must still get the dictionaries ----
@@ -231,7 +205,7 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 check("late locale still receives the dictionaries", dictionaries.length === 1 && dictionaries[0].ns === "settings.thinking-language", JSON.stringify(dictionaries));
 check(
 	"the dictionaries cover every shipped locale",
-	dictionaries[0] !== undefined && ["zh", "en", "ru", "fr", "de", "es", "ja", "ko"].every((id) => dictionaries[0].locales.includes(id)),
+	dictionaries[0] !== undefined && ["zh", "en", "ru", "fr", "de", "es", "ar", "pt", "ja"].every((id) => dictionaries[0].locales.includes(id)),
 	JSON.stringify(dictionaries[0]?.locales ?? [])
 );
 check("the row registers once locale is up", clientSlots.registrations.length === 1, `rows=${String(clientSlots.registrations.length)}`);
