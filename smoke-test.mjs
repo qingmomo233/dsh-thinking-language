@@ -26,11 +26,28 @@ import {
 	apply,
 	currentLanguage,
 	languageForSystemLocale,
+	localeChain,
+	normalizeLocale,
 	resetRegistration,
 	resolveLanguage,
+	resolveLanguagePreference,
+	systemLocaleCandidates,
 	thinkingInstruction,
 	thinkingReminder
 } from "./lib/index.js";
+
+// The host detects the OS language through `Intl` and the POSIX environment
+// (see `detectedSystemLocales` in lib/index.js). Pin both so the suite answers
+// the same way on a Chinese developer machine, an English CI box, and a host
+// with LANG=zh_CN.UTF-8 exported: every "falls back to en" assertion below is
+// about an UNRECOGNISED locale, not about the machine running the test.
+for (const key of ["LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"]) delete process.env[key];
+let pinnedIntlLocale = "en-US";
+Intl.DateTimeFormat = class {
+	resolvedOptions() {
+		return { locale: pinnedIntlLocale };
+	}
+};
 
 const failures = [];
 const check = (label, ok, extra = "") => {
@@ -221,6 +238,72 @@ check("every catalog language resolves from its own id", THINKING_LANGUAGES.ever
 check("case/underscore variants resolve", languageForSystemLocale("EN_us")?.id === "en");
 check("empty locale resolves to nothing", languageForSystemLocale("") === undefined);
 check("non-string locale resolves to nothing", languageForSystemLocale(null) === undefined);
+check(
+	"locale extensions do not defeat matching",
+	localeChain("zh-CN-u-nu-hanidec").includes("zh-cn") && localeChain("en-US-POSIX").includes("en-us"),
+	JSON.stringify(localeChain("zh-CN-u-nu-hanidec"))
+);
+check("script+region chain stays most-specific-first", JSON.stringify(localeChain("zh-Hant-TW")) === JSON.stringify(["zh-hant-tw", "zh-hant", "zh-tw", "zh"]));
+check("POSIX codesets and modifiers normalize", normalizeLocale("zh_CN.UTF-8") === "zh-cn" && normalizeLocale("de_DE.UTF-8@euro") === "de-de", String(normalizeLocale("de_DE.UTF-8@euro")));
+check("the C/POSIX placeholders are not languages", normalizeLocale("C.UTF-8") === undefined && normalizeLocale("POSIX") === undefined);
+check(
+	"host locale detection orders Intl before the environment and dedupes",
+	JSON.stringify(systemLocaleCandidates({ intlLocale: "zh-CN", env: { LC_ALL: "en_US.UTF-8", LANG: "zh_CN.UTF-8", LANGUAGE: "fr:de" } })) ===
+		JSON.stringify(["zh-cn", "en-us", "fr", "de"]),
+	JSON.stringify(systemLocaleCandidates({ intlLocale: "zh-CN", env: { LC_ALL: "en_US.UTF-8", LANG: "zh_CN.UTF-8", LANGUAGE: "fr:de" } }))
+);
+
+// The reported bug: "follow the system" fell back to English on a Chinese
+// machine because the only locale consulted was `locale.preference`, which the
+// shell writes only after the user picks a UI language explicitly. The host
+// now detects the OS language itself; these cases pin that contract, including
+// the precedence of an explicit stored preference over the detection.
+check("a detected zh-CN system thinks in Simplified Chinese", resolveLanguagePreference("auto", undefined, ["zh-CN"]) === "zh-CN");
+check("a detected zh-Hant system thinks in Traditional Chinese", resolveLanguagePreference("auto", undefined, ["zh-TW"]) === "zh-TW");
+check(
+	"the stored locale preference wins over the detected one",
+	resolveLanguagePreference("auto", { describe: () => [{ ns: "locale", value: { preference: "ja" } }] }, ["zh-CN"]) === "ja"
+);
+check("an empty detection still falls back to en", resolveLanguagePreference("auto", undefined, []) === "en");
+check("an unrecognised detection falls back to en", resolveLanguagePreference("auto", undefined, ["xx-YY"]) === "en");
+check("an explicit id ignores the detected locale", resolveLanguagePreference("de", undefined, ["zh-CN"]) === "de");
+
+// End to end through the real host entry, with the OS language reported as
+// Chinese and no stored preference anywhere.
+{
+	pinnedIntlLocale = "zh-CN";
+	const chineseHost = await import("./lib/index.js?intl-zh");
+	let chineseSection;
+	const prompt = {
+		section(section) {
+			chineseSection = section.text;
+		},
+		context() {}
+	};
+	const ctx = {
+		fiber: { id: "thinking-language-zh" },
+		get(name) {
+			if (name === "systemPrompt") return prompt;
+			if (name === "settings") return {};
+			return undefined;
+		},
+		effect(fn) {
+			const disposer = fn();
+			return () => {
+				if (typeof disposer === "function") disposer();
+			};
+		},
+		inject(services, callback) {
+			if (services.some((name) => ctx.get(name) === undefined)) return () => {};
+			callback(ctx);
+			return () => {};
+		}
+	};
+	Object.defineProperty(ctx, "systemPrompt", { get: () => prompt });
+	chineseHost.apply(ctx, { [THINKING_LANGUAGE_FIELD]: "auto" });
+	check("a Chinese host with no stored preference thinks in Chinese", chineseSection({}).includes("简体中文"), chineseSection({}));
+	pinnedIntlLocale = "en-US";
+}
 
 // Explicit values pass through untouched, including ones the catalog dropped.
 document[THINKING_NAMESPACE] = { language: "ru" };
@@ -357,7 +440,6 @@ check("client bundle does not require an optional seed word eagerly", !/^\s*let 
 const requireStub = (specifier) => {
 	if (specifier === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), useState: (initial) => [initial, () => {}] };
 	if (specifier === "react/jsx-runtime") throw new Error("client bundle required react/jsx-runtime; it must build elements through the platform React or a plain description");
-	if (specifier === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: "Menu", IconChevronDownOutlineRegular: "IconChevronDownOutlineRegular" };
 	throw new Error(`client bundle required an unavailable module: ${specifier}`);
 };
 const registrationsSeen = [];
@@ -550,9 +632,12 @@ if (clientExports !== undefined) {
 	// Permission rows: the title and its hint on the left, the selector on the
 	// right. The shell renders a `settings.section` cell with no label of its
 	// own, so a bare container would leave a blank page behind the nav entry.
+	let picked = null;
 	const page = row?.component({
 		t: (key) => key,
-		setLanguage: () => {},
+		setLanguage: (value) => {
+			picked = value;
+		},
 		useStore: (select) => select({ language: "ja", catalog: [{ id: "auto" }, { id: "ja", label: "日本語" }] })
 	});
 	const rowBox = page?.children?.[0];
@@ -570,13 +655,23 @@ if (clientExports !== undefined) {
 			typeof picker?.type === "function",
 		JSON.stringify([rowBox?.props?.className, text?.props?.className, title?.props?.className, desc?.props?.className])
 	);
-	const menu = typeof picker?.type === "function" ? picker.type(picker.props) : undefined;
-	const anchor = menu?.props?.anchor;
+	// The picker is a native <select> plus a decorative chevron: DSH 0.2.x no
+	// longer ships the primitives package, and requiring a Harness client
+	// package from another bundle is unsupported, so the page builds its own
+	// control and keeps the pill look through CSS.
+	const control = typeof picker?.type === "function" ? picker.type(picker.props) : undefined;
+	const select = control?.props?.className === "dshtl_select" ? control.children?.[0] : undefined;
+	const option = select?.children?.find?.((child) => child?.props?.value === "ja");
+	select?.props?.onChange?.({ target: { value: "de" } });
 	check(
-		"client page selector names the active language",
-		menu?.props?.selectedId === "ja" && anchor?.props?.className === "dshtl_selector" && anchor?.children?.[0] === "日本語",
-		JSON.stringify(anchor?.children?.[0])
+		"client page selector is a native select naming the active language",
+		select?.props?.className === "dshtl_selector" &&
+			select?.props?.value === "ja" &&
+			option?.children?.[0] === "日本語" &&
+			control?.children?.[1]?.type === "svg",
+		JSON.stringify([control?.props?.className, select?.props?.className, option?.children?.[0]])
 	);
+	check("client page selector writes the chosen language back", picked === "de", String(picked));
 
 	// (3) dsh 0.1.x: the same form face, published as `settingsScope`.
 	slotRegistrations.length = 0;
@@ -692,21 +787,16 @@ const frozenClasses = ["dshtl_page", "dshtl_row", "dshtl_rowText", "dshtl_title"
 const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
 check("settings page CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
 
-// The one icon the page draws is named per generation (0.1.x sizes, 0.2.x
-// weights), and an unguarded miss renders `undefined` as a component: React
-// throws, the slot renderer drops the page, and the setting vanishes from a
-// healthy Settings panel. Every primitives access must therefore be one of the
-// names the bundle tolerates.
-const primitiveRefs = [...new Set([...clientSource.matchAll(/primitives\.([A-Za-z0-9_]+)/g)].map((match) => match[1]))];
-const toleratedPrimitives = ["Menu", "IconChevronDownOutlineRegular", "IconChevronDownOutline", "IconChevronDownOutline14"];
+// The page builds its own control: DSH 0.2.x dropped
+// `@deepseek-ai/dsh-client-ui-primitives`, and a client bundle may not require
+// another Harness client package at all, so any surviving primitives reference
+// would be a boot failure on the current runtime.
+const primitiveRequires = [...clientSource.matchAll(/require\("@deepseek-ai\/dsh-client-[^"]*"\)/g)].map((match) => match[0]);
+check("client bundle requires no Harness client package", primitiveRequires.length === 0, primitiveRequires.join(","));
+check("client page builds its own chevron", clientSource.includes("function chevronIcon()") && clientSource.includes('"svg"') && !/primitives\./.test(clientSource));
 check(
-	"client only touches primitives through generation-tolerant lookups",
-	primitiveRefs.length > 0 && primitiveRefs.every((name) => toleratedPrimitives.includes(name)),
-	primitiveRefs.join(",")
-);
-check(
-	"client resolves the chevron from the newer icon name first",
-	clientSource.includes("primitives.IconChevronDownOutlineRegular ?? primitives.IconChevronDownOutline ?? primitives.IconChevronDownOutline14")
+	"client page keeps the pill look through its own CSS",
+	clientSource.includes(".dshtl_select{") && clientSource.includes("appearance:none") && clientSource.includes('"select",')
 );
 
 // --- 8. package manifest ---------------------------------------------------
@@ -722,6 +812,31 @@ const patchSource = readFileSync(join(hostDir, manifest.dsh.bundle.patch), "utf8
 check("bundle patch inserts this package", patchSource.includes(`name: ${manifest.name}`));
 check("package does not require react any more", manifest.peerDependencies.react === undefined);
 check("client half declares its runtime packages", Array.isArray(manifest.dsh.client.inject) && manifest.dsh.client.inject.length > 0);
+
+// --- 8b. DSH 0.2.2 host contract ------------------------------------------
+// `engines.dsh` is the ONE field the boot compatibility gate reads: when it is
+// present the peer requirements are ignored, and a range that excludes the
+// running build makes the whole profile bundle be skipped.
+check("package declares the DSH engine range", manifest.engines?.dsh === ">=0.2.2-rc.1 <0.3.0-0", String(manifest.engines?.dsh));
+check("package no longer peers on the removed primitives package", manifest.peerDependencies["@deepseek-ai/dsh-client-ui-primitives"] === undefined && manifest.peerDependenciesMeta === undefined);
+
+// The Plugin Manager reads the locale catalog and the icon WITHOUT activating
+// the plugin, so both must be exported and packaged.
+check("manifest exports the icon", manifest.exports["./icon"] === "./dshlatking.png", String(manifest.exports["./icon"]));
+check("manifest exports the locale catalog", manifest.exports["./locale/*.json"] === "./locale/*.json", String(manifest.exports["./locale/*.json"]));
+const iconPath = join(hostDir, manifest.exports["./icon"]);
+check("icon resource exists", existsSync(iconPath));
+const iconBytes = readFileSync(iconPath);
+const iconWidth = iconBytes.readUInt32BE(16);
+const iconHeight = iconBytes.readUInt32BE(20);
+check("icon is a square PNG within the 256 KiB limit", iconBytes.length <= 256 * 1024 && iconWidth === iconHeight, `${iconWidth}x${iconHeight}, ${iconBytes.length}B`);
+for (const locale of ["en", "zh"]) {
+	const file = join(hostDir, "locale", `${locale}.json`);
+	const meta = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")).meta : undefined;
+	check(`locale/${locale}.json carries the plugin title and description`, typeof meta?.title === "string" && typeof meta?.description === "string", JSON.stringify(meta));
+}
+const packaged = new Set(manifest.files);
+check("package ships the icon and locale catalog", packaged.has("dshlatking.png") && packaged.has("locale"), [...packaged].join(","));
 
 if (failures.length === 0) console.log("\nALL CHECKS PASSED");
 else {

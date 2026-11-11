@@ -19,10 +19,13 @@ and Japanese, or "auto" to follow the system locale.
   Permission rows.
 - **Prompt injection** — when a language is selected the plugin injects a
   system-prompt instruction telling the model to write its internal reasoning
-  in that language. With *Follow the system (auto)* the instruction uses the
-  system UI locale (Settings → General → Language; defaults to Chinese). The
-  instruction is evaluated per prompt assembly, so it applies to every **new
-  session**. Existing sessions keep the prompt they already composed.
+  in that language. With *Follow the system (auto)* the plugin resolves the
+  language in this order: the UI language **explicitly chosen** in
+  Settings → General → Language, then the operating-system locale (host `Intl`
+  plus the `LC_ALL` / `LC_MESSAGES` / `LANG` / `LANGUAGE` environment
+  variables), then English. The instruction is evaluated per prompt assembly,
+  so it applies to every **new session**. Existing sessions keep the prompt
+  they already composed.
 
 The setting is stored in the standard user-settings document under the
 `thinking-language` namespace, so it survives restarts.
@@ -36,12 +39,14 @@ The setting is stored in the standard user-settings document under the
 `ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `ar` العربية ·
 `pt` Português · `ja` 日本語
 
-*Auto* matches the system language tag hierarchically: exact id, then region
+*Auto* matches the language tag hierarchically: exact id, then region
 variant, then language code. So `en-US` → English, `ja` → Japanese, `de-AT` →
 German, and Chinese is decided by **script/region**: `zh`, `zh-Hans`, `zh-CN`
 mean Simplified while `zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO` mean Traditional.
-An unrecognised locale falls back to English (matching the shell locale
-plugin's own fallback).
+Extension subtags (`zh-CN-u-nu-hanidec`) and POSIX modifiers
+(`de_DE.UTF-8@euro`) are ignored, and `C` / `POSIX` count as "unset". Only an
+unrecognised locale falls back to English (matching the shell locale plugin's
+own fallback).
 
 ## Install
 
@@ -75,10 +80,10 @@ install from the app's own plugin market instead (it accepts only a
 > **If it installs but does not show, look for `skipping profile bundle` in the
 > log.** A leftover entry under the old package name (renamed from
 > `dsh-plugin-thinking-language` to `dsh-thinking-language` in v1.1) is skipped —
-> `dsh plugin --profile web remove dsh-plugin-thinking-language` first. A
-> `peerDependencies` mismatch against the running dsh version is skipped too
-> (`^0.1.0-rc.6` does **not** match 0.2.x); the log says
-> `is incompatible with dsh …`.
+> `dsh plugin --profile web remove dsh-plugin-thinking-language` first. An
+> `engines.dsh` mismatch against the running dsh version is skipped too; the log
+> says `is incompatible with dsh …`. Since 2.0.0 the plugin requires
+> `>=0.2.2-rc.1 <0.3.0-0`.
 
 ### About the settings-exposure patch (very old harnesses only)
 
@@ -107,6 +112,13 @@ node scripts/patch-apiproxy.mjs --write  # apply (writes a .dsh-thinking-languag
 
 ## Compatibility
 
+Since 2.0.0 the plugin targets **DSH 0.2.2-rc.1** and the rest of that line,
+declared through `package.json`'s `engines.dsh` (`>=0.2.2-rc.1 <0.3.0-0`).
+Client resources follow the 0.2.x contract, the icon is exposed through
+`exports["./icon"]`, and the plugin-manager title/description come from the
+exported `locale/{en,zh}.json`, so both render even while the plugin is
+**disabled**.
+
 The plugin degrades instead of failing when a service or dependency is absent:
 
 | Situation | Behaviour |
@@ -115,10 +127,10 @@ The plugin degrades instead of failing when a service or dependency is absent:
 | Harness without this settings channel (no `settings` service / registration refused) | one warning, the prompt surfaces keep working |
 | Harness without a settings transport (`configForms` / `settingsScope`) | the page is skipped and reported once after boot |
 | Harness without the `locale` service | the page uses its built-in copy instead of crashing |
-| Harness without the platform UI primitives module | the page falls back to a native select and still shows |
 | `describe()` unavailable or a different schema shape | the picker falls back to the bundled catalog |
 | Hand-edited/corrupt settings section | treated as `auto`; nothing is thrown and user data is never rewritten |
 | Unrecognised system language tag | falls back to English (matching the shell locale plugin) |
+| No UI language was ever chosen explicitly | the OS locale is detected instead of defaulting to English |
 
 Both halves share one catalog: the picker's entries are derived from the
 **host-registered settings schema** (each enum value carries its endonym, e.g.
@@ -132,6 +144,8 @@ fallback copy, and `smoke-test.mjs` fails when the two drift apart.
 | Pure core | `lib/languages.js` | catalog, system-locale tag matching, instruction/reminder copy (no cordis, no browser globals — directly unit-testable) |
 | Host entry | `lib/index.js` | registers the `thinking-language` settings namespace and the `app:thinking-language` system-prompt section (order 85) |
 | Browser bundle | `lib/client.js` | registers a dedicated **Thinking language** page into the `settings.section` slot and reads/writes the same namespace through the client settings scope |
+| Plugin metadata | `locale/en.json`, `locale/zh.json` | plugin-manager title and description (read even while the plugin is disabled) |
+| Plugin icon | `dshlatking.png` | 351×351 square, exposed through `exports["./icon"]` |
 | Bundle patch | `cordis.patch.yml` | inserts the plugin row into the composed profile tree |
 | Tests | `smoke-test.mjs` | host registration, locale matrix, settings-handle shapes, browser-bundle drift and degradation paths, frozen UI copy |
 

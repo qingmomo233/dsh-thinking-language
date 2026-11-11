@@ -8,16 +8,17 @@
 
 一个 DeepSeek Harness 插件，用于切换智能体**思考过程（推理 / 链式思考）的语言**。
 支持中文（简/繁）、英文、俄语、法语、德语、西班牙语、阿拉伯语、葡萄牙语、日语，
-也可选择「跟随系统（自动）」——让思考语言跟随系统界面语言。
+也可选择「跟随系统（自动）」——让思考语言跟随系统语言。
 
 ## 功能
 
 - **独立设置页** — 设置 → **思考语言** 是一个独立页面，页内只有一行：左侧标题与说明，
   右侧一个选择列表（选择 pill + 下拉菜单），与内置「语言」「权限预设」行同款。
 - **系统提示词注入** — 选择语言后，插件会向系统提示词注入一条指令，要求模型用该语言
-  书写内部推理过程。选择「跟随系统（自动）」时，指令使用系统界面语言
-  （设置 → 通用 → 语言，缺省中文）。指令在每次组装提示词时求值，因此对**新建会话**
-  生效；已有会话继续使用其已组装的提示词。
+  书写内部推理过程。选择「跟随系统（自动）」时，插件按下面的顺序确定语言：
+  设置 → 通用 → 语言里**明确选过**的界面语言 → 操作系统区域（宿主 `Intl` 与
+  `LC_ALL` / `LC_MESSAGES` / `LANG` / `LANGUAGE` 环境变量）→ 英文。
+  指令在每次组装提示词时求值，因此对**新建会话**生效；已有会话继续使用其已组装的提示词。
 
 设置存储于标准用户设置文档的 `thinking-language` 命名空间，重启后仍保留。
 
@@ -29,10 +30,11 @@
 `ru` Русский · `fr` Français · `de` Deutsch · `es` Español · `ar` العربية ·
 `pt` Português · `ja` 日本語
 
-「自动」按系统语言标签逐级匹配：精确 id → 地区变体 → 语言代码。因此 `en-US` → 英文、
+「自动」按语言标签逐级匹配：精确 id → 地区变体 → 语言代码。因此 `en-US` → 英文、
 `ja` → 日语、`de-AT` → 德语；中文按**字体/地区**判定：`zh`、`zh-Hans`、`zh-CN` → 简体，
-`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` → 繁体。无法识别的语言回退到英文
-（与界面语言插件的兜底一致）。
+`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` → 繁体。标签后的扩展子标签（如
+`zh-CN-u-nu-hanidec`）与 POSIX 修饰（`de_DE.UTF-8@euro`）会被忽略；`C` / `POSIX`
+视为「未指定」。无法识别的语言才回退到英文（与界面语言插件的兜底一致）。
 
 ## 安装
 
@@ -57,8 +59,8 @@ dsh plugin --profile web add github:qingmomo233/dsh-thinking-language
 > **不显示时先看日志里有没有 `skipping profile bundle`：**
 > 包名残留旧名（v1.1 起由 `dsh-plugin-thinking-language` 改为 `dsh-thinking-language`）
 > 会被整包跳过，先 `dsh plugin --profile web remove dsh-plugin-thinking-language` 再装；
-> `peerDependencies` 与 dsh 版本不匹配（`^0.1.0-rc.6` 这类**不匹配 0.2.x**）同样会
-> 被跳过，日志会写 `is incompatible with dsh …`。
+> `engines.dsh` 与当前运行的 DSH 版本不匹配同样会被跳过，日志会写
+> `is incompatible with dsh …`。2.0.0 起要求 `>=0.2.2-rc.1 <0.3.0-0`。
 
 ### 关于设置暴露补丁（仅极旧版本需要）
 
@@ -82,6 +84,11 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 
 ## 兼容性
 
+2.0.0 起面向 **DSH 0.2.2-rc.1** 及同系列版本，通过 `package.json` 的
+`engines.dsh`（`>=0.2.2-rc.1 <0.3.0-0`）声明；客户端资源按 0.2.x 规范提供，
+插件图标通过 `exports["./icon"]` 暴露，插件管理器的标题/说明来自 `exports` 出来的
+`locale/{en,zh}.json`，因此**未启用**该插件时也能正确显示。
+
 插件在以下方向做过兼容性处理，缺少某个服务或依赖时**降级**而不是整体失效：
 
 | 场景 | 行为 |
@@ -90,10 +97,10 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 | Harness 不支持该设置通道（没有 `settings` 服务 / 拒绝注册） | 记录一次警告，提示词功能照常 |
 | Harness 无设置通道（`configForms` / `settingsScope`） | 跳过设置页并在启动后记录一次警告 |
 | Harness 未提供 `locale` 服务 | 设置页使用内置文案（`lang.auto` 等）而非崩溃 |
-| Harness 未提供平台 UI primitives 模块 | 回退到原生下拉，设置页照常显示 |
 | `describe()` 不可用或 schema 结构不同 | 选择列表回退到内置语言表 |
 | 设置文档被手工改坏（非对象、非字符串） | 视为 `auto`，不抛错，也不覆盖用户数据 |
 | 系统语言标签无法识别 | 回退英文（与界面语言插件兜底一致） |
+| 系统界面语言未显式设置过 | 读取操作系统区域，不再一律回退英文 |
 
 宿主端与浏览器端共享同一份语言目录：设置页的候选项由**宿主注册的 schema** 推导
 （每个枚举值附带 `简体中文` 形式的母语名标签，与原来的显示一致），浏览器端只保留一份
@@ -106,6 +113,8 @@ node scripts/patch-apiproxy.mjs --write  # 确认需要后再写入（会先备�
 | 纯逻辑核心 | `lib/languages.js` | 语言目录、系统语言标签匹配、指令与提醒文案（无 cordis / 无浏览器依赖，可直接单测） |
 | 服务端入口 | `lib/index.js` | 注册 `thinking-language` 设置命名空间与 `app:thinking-language` 系统提示词小节（顺序 85） |
 | 浏览器端 | `lib/client.js` | 向 `settings.section` 槽注册独立的「思考语言」设置页；通过客户端设置作用域读写同一命名空间 |
+| 插件元数据 | `locale/en.json`、`locale/zh.json` | 插件管理器的标题与说明（未启用插件时也会读取） |
+| 插件图标 | `dshlatking.png` | 351×351 方图，经 `exports["./icon"]` 暴露 |
 | Bundle 补丁 | `cordis.patch.yml` | 把插件行插入组合后的配置树 |
 | 测试 | `smoke-test.mjs` | 宿主注册、语言匹配矩阵、读写句柄兼容、浏览器 bundle 漂移与降级路径、UI 文案锁定 |
 

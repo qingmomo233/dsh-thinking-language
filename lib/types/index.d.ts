@@ -71,6 +71,16 @@ export type SettingsHandle = SettingsReader | SettingsSection;
 
 /** Normalize one locale tag into its matching chain, most specific first. */
 export declare function localeChain(locale: unknown): string[];
+/** Normalize one raw locale/env value (`zh_CN.UTF-8` -> `zh-cn`), or undefined. */
+export declare function normalizeLocale(locale: unknown): string | undefined;
+/**
+ * Collect the operating system's locale tags, most authoritative first: the
+ * host `Intl` locale, then `LC_ALL`/`LC_MESSAGES`/`LANG`/`LANGUAGE`.
+ */
+export declare function systemLocaleCandidates(input?: {
+    intlLocale?: unknown;
+    env?: Record<string, string | undefined> | undefined;
+}): string[];
 /** Resolve one system locale to a catalog entry, or undefined. */
 export declare function languageForSystemLocale(locale: unknown): ThinkingLanguage | undefined;
 /** The label attached to one id in the registered settings schema. */
@@ -78,13 +88,21 @@ export declare function languageLabel(id: string): string | undefined;
 /** Read the current preference (schema default when absent or unreadable). */
 export declare function currentLanguage(settings: SettingsHandle | undefined | null): string;
 /**
+ * Resolve the effective thinking-language id from an already-read preference.
+ * @param preference - the stored value (`auto` means "follow the system").
+ * @param services - optional settings service used to read `locale.preference`
+ *   (through `get(ns)` on 0.1.x and through `describe()` on 0.2.x).
+ * @param systemLocales - optional detected system locales, most specific first.
+ */
+export declare function resolveLanguagePreference(preference: string | undefined | null, services?: SettingsReader | undefined | null, systemLocales?: string | string[] | undefined): string;
+/**
  * Resolve the effective thinking-language id for one settings snapshot.
  * @param settings - the handle carrying the preference.
  * @param services - optional settings service used to read `locale.preference`
  *   (through `get(ns)` on 0.1.x and through `describe()` on 0.2.x).
- * @param systemLocale - optional browser-derived locale.
+ * @param systemLocale - optional detected system locale(s).
  */
-export declare function resolveLanguage(settings: SettingsHandle | undefined | null, services?: SettingsReader | undefined | null, systemLocale?: string): string;
+export declare function resolveLanguage(settings: SettingsHandle | undefined | null, services?: SettingsReader | undefined | null, systemLocale?: string | string[]): string;
 /** Compose the model instruction for one language id; `auto` and unknown ids yield "". */
 export declare function thinkingInstruction(language: string | undefined): string;
 /** Compose the per-step dynamic reminder for one language id; `auto` and unknown ids yield "". */

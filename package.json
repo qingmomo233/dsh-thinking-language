@@ -1,6 +1,6 @@
 {
   "name": "dsh-thinking-language",
-  "version": "1.5.2",
+  "version": "2.0.0",
   "description": "DSH plugin: switch the language of the agent's thinking/reasoning process (简体中文, 繁體中文, English, Русский, Français, Deutsch, Español, العربية, Português, 日本語)",
   "license": "MIT",
   "repository": {
@@ -32,16 +32,23 @@
       "default": "./lib/client.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./dshlatking.png",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "locale",
     "scripts",
     "cordis.patch.yml",
+    "dshlatking.png",
     "CHANGELOG.md",
     "README.md",
     "README.en.md"
   ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
   "scripts": {
     "test": "node smoke-test.mjs && node cordis-check.mjs",
     "test:smoke": "node smoke-test.mjs",
@@ -61,11 +68,9 @@
       "platform": "web"
     },
     "compatibility": {
-      "dsh": ">=0.1.0-rc.5 <0.3.0-0",
+      "dsh": ">=0.2.2-rc.1 <0.3.0-0",
       "dshReleases": {
-        "0.1.5-alpha.1": "compatible",
-        "0.2.0-rc.1": "compatible",
-        "0.2.0-rc.2": "compatible"
+        "0.2.2-rc.1": "compatible"
       }
     }
   },
@@ -76,12 +81,6 @@
     "@deepseek-ai/cordis": "^4.0.1"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.1",
-    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.5 <0.3.0-0"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-client-ui-primitives": {
-      "optional": true
-    }
+    "@deepseek-ai/cordis": ">=4.0.1"
   }
 }

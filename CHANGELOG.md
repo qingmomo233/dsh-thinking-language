@@ -1,5 +1,55 @@
 # Changelog
 
+## 2.0.0
+
+适配 **DSH 0.2.2-rc.1**（不再兼容 0.1.x），并修复「跟随系统」在中文系统上误判为英文的问题。
+
+### 破坏性变更
+
+- **仅支持 DSH 0.2.2-rc.1 及同系列版本。** `package.json` 新增
+  `engines.dsh: ">=0.2.2-rc.1 <0.3.0-0"`；Harness 的兼容性校验在存在该字段时只读它，
+  不再看 `peerDependencies`，因此旧版 DSH（含 0.1.x、0.2.0）会跳过本插件并在日志中写
+  `is incompatible with dsh …`。
+- **移除 `@deepseek-ai/dsh-client-ui-primitives` 依赖。** 该包在 0.2.2 已不存在；
+  设置页改为插件自带的原生 `<select>` 与内联 chevron SVG，外观（pill、间距、hover、
+  焦点环）与原先一致，不再 require 任何 Harness 客户端包。
+
+### 修复
+
+- **「跟随系统（自动）」在中文系统上回退英文。** 之前只读取设置文档里的
+  `locale.preference`，而该字段**只有用户显式在「设置 → 通用 → 语言」里选过**才存在，
+  于是候选列表里只剩 `undefined` 与 `"en"`，中文系统也落到英文。现在按序解析：
+  已存储的界面语言偏好 → 调用方提供的系统语言 → **宿主检测到的操作系统区域**
+  （`Intl.DateTimeFormat().resolvedOptions().locale`，再叠加
+  `LC_ALL` / `LC_MESSAGES` / `LANG` / `LANGUAGE`）→ 英文。
+  `zh`、`zh-Hans`、`zh-CN` 映射简体中文，`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 映射
+  繁体中文；`C` / `POSIX`、未知标签才回退英文。
+- 语言标签匹配更健壮：忽略扩展子标签（`zh-CN-u-nu-hanidec`）、POSIX 修饰
+  （`de_DE.UTF-8@euro`）与大小写/下划线差异；`normalizeLocale` 统一清洗。
+- 同一轮提示词组装的 section 与 reminder 现在**只读取一次**语言偏好
+  （`resolveLanguagePreference`），避免两次求值之间设置变动造成指令与提醒语言不一致。
+
+### 新增
+
+- **插件图标 `dshlatking.png`。** 351×351 方图（142 KB，低于 Harness 的 256 KiB 上限），
+  通过 `exports["./icon"]` 暴露，插件管理与设置界面都会显示。
+- **`locale/en.json`、`locale/zh.json`。** 提供插件管理器的标题与说明；
+  这两个文件在插件**未启用**时也会被读取，因此不再依赖 `package.json` 的 name 兜底。
+- `exports` 增加 `./locale/*.json` 与 `./icon`；`files` 补上 `dshlatking.png` 与
+  `locale/`，保证从 git 安装时资源不丢。
+
+### 变更
+
+- `lib/client.js`：去掉对 primitives 的探测与回退分支，选择器改由插件自己的
+  `span.dshtl_select > select.dshtl_selector + svg.dshtl_chevron` 组成；
+  写入逻辑（`auto` → `unset`，其余 → `set`）与 `thinking-language` 命名空间保持不变。
+- `lib/index.js`：宿主侧缓存一次系统语言检测结果（`detectedSystemLocales`），
+  提示词 section（order 85）与 reminder（order 1000）仍是函数式 `text`，
+  每次组装提示词时求值。
+- 测试同步更新：固定 `Intl` 与清空 `LC_*`/`LANG`，新增系统语言探测、中文端到端
+  注入、清单元数据（`engines.dsh`、`exports["./icon"]`、图标尺寸与体积、locale 文件）
+  等断言；`smoke-test.mjs` 与 `cordis-check.mjs` 全部通过。
+
 ## 1.5.2
 
 ### Changed
