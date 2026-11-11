@@ -17,6 +17,11 @@ and Japanese, or "auto" to follow the system locale.
   with a single row: the title and its hint on the left, one selector pill
   (dropdown menu) on the right — the same shape as the built-in Language /
   Permission rows.
+- **Native dropdown and theming** — the popup is the shell's own `Menu`
+  primitive (the same component the built-in Language row opens), so the
+  selected state, keyboard handling, popup colours and the light/dark theme all
+  come from the shell; the pill reuses the built-in row's `--dsw-alias-*`
+  tokens and owns no colour of its own.
 - **Prompt injection** — when a language is selected the plugin injects a
   system-prompt instruction telling the model to write its internal reasoning
   in that language. With *Follow the system (auto)* the plugin resolves the

@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.0.1
+
+下拉选择框改为 **DeepSeek Harness 原生控件**，并完成浅色 / 深色主题适配。
+
+### 变更
+
+- **选择器改用 Harness 的 `Menu` 原语。** 设置页现在与内置「设置 → 通用 → 语言」行
+  完全一致：`button.dshtl_selector`（左侧当前语言 + 右侧 `IconChevronDownOutlineRegular`）
+  作为锚点，点击后由 `@deepseek-ai/dsh-client-ui-primitives` 的 `Menu` 渲染弹层
+  （`align: "end"`、`portal: true`、选中态与键盘/焦点行为均由 shell 提供），
+  不再使用原生 `<select>`。
+- **浅色 / 深色主题跟随。** pill 使用与 `LanguageRow` 相同的 token：
+  `--dsw-alias-bg-module-platform`（底色）、`--dsw-alias-label-primary`（文字）、
+  `--dsw-alias-interactive-bg-hover`（hover）、`--dsw-radius-md`（圆角）；
+  弹层配色、阴影与选中勾选由 shell 的 `Menu` 负责，因此切换主题时无需任何插件代码。
+- **修正 2.0.0 的判断。** 0.2.2 并未移除 `@deepseek-ai/dsh-client-ui-primitives`：
+  宿主自带的 `dsh-client-locale`、`dsh-client-ui-settings-general` 等客户端包都
+  直接 require 它（由 web shell 提供）。本轮恢复对它的使用，控件规格直接对照
+  `dsh-client-locale/lib/client.js` 的 `LanguageRow` 与它的 `LanguageRow.module.css`。
+
+### 修复
+
+- 选择器 pill 的尺寸与内置行对齐：高度 36px、`gap: 12px`、`padding: 0 14px`、
+  圆角 `--dsw-radius-md`（原实现为 18px 圆角和自绘 SVG，看起来略偏圆、图标偏小）。
+
+### 测试
+
+- `smoke-test.mjs` 的 client 部分改为断言 `primitives.Menu` 的锚点、`selectedId`、
+  `align` / `portal`、chevron 图标来源，以及 pill 的 token 规格；
+  `cordis-check.mjs` 的 client stub 同步提供 primitives。两套测试均通过。
+
 ## 2.0.0
 
 适配 **DSH 0.2.2-rc.1**（不再兼容 0.1.x），并修复「跟随系统」在中文系统上误判为英文的问题。

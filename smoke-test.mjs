@@ -437,9 +437,14 @@ check("client bundle does not require an optional seed word eagerly", !/^\s*let 
 // The stub answers exactly what the bundle asks for and throws for anything
 // else, which is what a real module table does — so a bundle that starts
 // requiring an unavailable seed word fails this test instead of a browser.
+// Stable stand-ins for the shell components the page borrows: identity matters
+// in the assertions below, so they are created once instead of per require.
+const menuStub = (props) => ({ type: "menu", props });
+const chevronStub = (props) => ({ type: "chevron", props });
 const requireStub = (specifier) => {
 	if (specifier === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), useState: (initial) => [initial, () => {}] };
 	if (specifier === "react/jsx-runtime") throw new Error("client bundle required react/jsx-runtime; it must build elements through the platform React or a plain description");
+	if (specifier === "@deepseek-ai/dsh-client-ui-primitives") return { Menu: menuStub, IconChevronDownOutlineRegular: chevronStub };
 	throw new Error(`client bundle required an unavailable module: ${specifier}`);
 };
 const registrationsSeen = [];
@@ -655,21 +660,28 @@ if (clientExports !== undefined) {
 			typeof picker?.type === "function",
 		JSON.stringify([rowBox?.props?.className, text?.props?.className, title?.props?.className, desc?.props?.className])
 	);
-	// The picker is a native <select> plus a decorative chevron: DSH 0.2.x no
-	// longer ships the primitives package, and requiring a Harness client
-	// package from another bundle is unsupported, so the page builds its own
-	// control and keeps the pill look through CSS.
+	// The picker is the shell's own dropdown: `primitives.Menu` anchored to the
+	// same pill the built-in Language row renders (`LanguageRow` in
+	// dsh-client-locale). The popup placement, the selected state and both
+	// themes come from the shell; the page only supplies items and the write.
 	const control = typeof picker?.type === "function" ? picker.type(picker.props) : undefined;
-	const select = control?.props?.className === "dshtl_select" ? control.children?.[0] : undefined;
-	const option = select?.children?.find?.((child) => child?.props?.value === "ja");
-	select?.props?.onChange?.({ target: { value: "de" } });
+	const anchor = control?.props?.anchor;
+	const option = control?.props?.items?.find?.((item) => item.id === "ja");
+	control?.props?.onSelect?.("de");
 	check(
-		"client page selector is a native select naming the active language",
-		select?.props?.className === "dshtl_selector" &&
-			select?.props?.value === "ja" &&
-			option?.children?.[0] === "日本語" &&
-			control?.children?.[1]?.type === "svg",
-		JSON.stringify([control?.props?.className, select?.props?.className, option?.children?.[0]])
+		"client page opens the shell menu from the language pill",
+		control?.type === menuStub &&
+			control?.props?.selectedId === "ja" &&
+			control?.props?.align === "end" &&
+			control?.props?.portal === true &&
+			option?.label === "日本語" &&
+			anchor?.type === "button" &&
+			anchor?.props?.className === "dshtl_selector" &&
+			anchor?.props?.["aria-haspopup"] === "menu" &&
+			anchor?.props?.["aria-expanded"] === false &&
+			anchor?.children?.[0] === "日本語" &&
+			anchor?.children?.[1]?.type === chevronStub,
+		JSON.stringify({ selectedId: control?.props?.selectedId, anchor: anchor?.props?.className, label: option?.label })
 	);
 	check("client page selector writes the chosen language back", picked === "de", String(picked));
 
@@ -787,16 +799,25 @@ const frozenClasses = ["dshtl_page", "dshtl_row", "dshtl_rowText", "dshtl_title"
 const missingClasses = frozenClasses.filter((name) => !clientSource.includes(`"${name}"`) && !clientSource.includes(`.${name}`));
 check("settings page CSS class names are unchanged", missingClasses.length === 0, missingClasses.join(" | "));
 
-// The page builds its own control: DSH 0.2.x dropped
-// `@deepseek-ai/dsh-client-ui-primitives`, and a client bundle may not require
-// another Harness client package at all, so any surviving primitives reference
-// would be a boot failure on the current runtime.
+// The page borrows the shell's own dropdown: exactly one Harness client
+// package is required — the primitives module exporting `Menu` and the
+// chevron icon — which is what the built-in Language row requires too.
 const primitiveRequires = [...clientSource.matchAll(/require\("@deepseek-ai\/dsh-client-[^"]*"\)/g)].map((match) => match[0]);
-check("client bundle requires no Harness client package", primitiveRequires.length === 0, primitiveRequires.join(","));
-check("client page builds its own chevron", clientSource.includes("function chevronIcon()") && clientSource.includes('"svg"') && !/primitives\./.test(clientSource));
 check(
-	"client page keeps the pill look through its own CSS",
-	clientSource.includes(".dshtl_select{") && clientSource.includes("appearance:none") && clientSource.includes('"select",')
+	"client bundle borrows the shell dropdown primitives",
+	primitiveRequires.length === 1 && primitiveRequires[0] === 'require("@deepseek-ai/dsh-client-ui-primitives")',
+	primitiveRequires.join(",")
+);
+check(
+	"client page uses the shell menu and chevron",
+	clientSource.includes("primitives.Menu") && clientSource.includes("primitives.IconChevronDownOutlineRegular") && !clientSource.includes('"svg"')
+);
+check(
+	"client page keeps the native pill metrics",
+	clientSource.includes("border-radius:var(--dsw-radius-md)") &&
+		clientSource.includes("background:var(--dsw-alias-bg-module-platform)") &&
+		clientSource.includes("var(--dsw-alias-interactive-bg-hover)") &&
+		clientSource.includes("height:36px")
 );
 
 // --- 8. package manifest ---------------------------------------------------
